@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/join.js": { "maxDuration": 10, "regions": ["bom1"] },
+    "api/heartbeat.js": { "maxDuration": 10, "regions": ["bom1"] },
+    "api/mission.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
+    "api/recovery.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
+    "api/run.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" }
+  },
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/health.js" }
+  ]
+}
