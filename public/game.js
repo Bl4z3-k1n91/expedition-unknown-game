@@ -49,11 +49,12 @@ function render() {
   document.querySelectorAll(".stage").forEach(item => item.classList.toggle("active", item.dataset.stage === stage));
   document.querySelector("#f-credit").textContent = `${10 - features.size} / 10`; document.querySelector("#r-credit").textContent = `${15 - repairCost()} / 15`;
   box.innerHTML = stage === "recovery" ? recoveryMarkup() : stage === "labelling" ? labelMarkup() : stage === "features" ? featureMarkup() : stage === "quality" ? qualityMarkup() : arenaMarkup();
+  if (stage === "recovery") box.innerHTML = box.innerHTML.replace("At 03:17, Outpost Nilgiri lost contact with Survey Team Kestrel.", "At 03:17, Field Team Kestrel missed its final check-in.");
   bind();
 }
 
 function bind() {
-  document.querySelectorAll(".stage").forEach(item => item.onclick = () => { const target = item.dataset.stage, targetIndex = stageOrder.indexOf(target); if (targetIndex > 0 && !recoveryVerified) return; if (targetIndex > 1 && !labelsLocked) return; stage = target; render(); });
+  document.querySelectorAll(".stage").forEach(item => item.onclick = () => { const target = item.dataset.stage, targetIndex = stageOrder.indexOf(target); if (targetIndex > 0 && !recoveryVerified) return; if (targetIndex > 1 && !labelsLocked) return; stage = target; render(); window.scrollTo(0, 0); box.scrollTo(0, 0); });
   document.querySelectorAll("[data-custody]").forEach(item => item.onclick = () => { custodyDecisions[item.dataset.custody] = item.dataset.verdict; custodyStatus = ""; render(); });
   const seal = document.querySelector("#seal-custody"); if (seal) seal.onclick = async () => { seal.disabled = true; try { const result = await request("/api/recovery", { room: session.room, action: "classify", decisions: Object.entries(custodyDecisions).map(([fileId, verdict]) => ({ fileId, verdict })) }); recoveryClassified = true; custodyStatus = result.message; render(); } catch (error) { custodyStatus = spendHint(error.result || { error: error.message }); render(); } };
   document.querySelectorAll("[data-range-start]").forEach(item => item.onchange = () => { const file = data.recovery.files.find(f => f.id === item.dataset.rangeStart), draft = validRange(file, { ...(recoveryDrafts[file.id] || { rowStart: file.rows[0], rowEnd: file.rows[1], columns: [] }), rowStart: Number(item.value) }); recoveryDrafts[file.id] = draft; render(); });
@@ -72,7 +73,7 @@ function bind() {
   document.querySelectorAll("[data-feature]").forEach(item => item.onclick = () => { const feature = item.dataset.feature; features.has(feature) ? features.delete(feature) : features.size < 8 && features.add(feature); render(); });
   document.querySelectorAll("[data-repair]").forEach(item => item.onclick = () => { const repair = item.dataset.repair, cost = Number(repair.split("|")[1]); repairs.has(repair) ? repairs.delete(repair) : repairCost() + cost <= 15 && repairs.add(repair); render(); });
   document.querySelectorAll("[data-model]").forEach(item => item.onclick = () => { model = item.dataset.model; render(); });
-  const next = document.querySelector("#next"); if (next) next.onclick = () => { stage = stageOrder[Math.min(stageOrder.length - 1, stageOrder.indexOf(stage) + 1)]; render(); };
+  const next = document.querySelector("#next"); if (next) next.onclick = () => { stage = stageOrder[Math.min(stageOrder.length - 1, stageOrder.indexOf(stage) + 1)]; render(); window.scrollTo(0, 0); box.scrollTo(0, 0); };
   const evaluate = document.querySelector("#evaluate"); if (evaluate) evaluate.onclick = async () => { evaluate.disabled = true; evaluate.textContent = "RUNNING…"; try { const result = await run("evaluate"); evaluate.textContent = `MACRO F1 ${result.score} · FIXED 40-ROW VALIDATION`; } catch (error) { evaluate.textContent = error.message; evaluate.disabled = false; } };
   const ready = document.querySelector("#ready"); if (ready) ready.onclick = async () => { ready.disabled = true; ready.textContent = "TRAINING + EXPORTING…"; try { const result = await run("submit"); finalCsv = result.csv; download.disabled = false; ready.textContent = `submission.csv READY · Macro F1 ${result.validationScore}`; } catch (error) { ready.textContent = error.message; ready.disabled = false; } };
 }
