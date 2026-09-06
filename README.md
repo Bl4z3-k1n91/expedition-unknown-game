@@ -11,7 +11,7 @@ The game has five stages:
 
 1. **Data recovery** — investigate six intercepted transmissions, classify each as trusted or quarantined from its SHA-256 fingerprint, then reconstruct a 200-record data package from approved fragments.
 2. **Image labelling** — classify 50 server-rendered camera-trap frames as Elephant, Giraffe, Human, or Empty. Telemetry supports each decision, and incorrect labels carry into model training.
-3. **Feature hunt** — choose exactly 8 features using a limited investigation budget.
+3. **Feature hunt** — spend a server-verified 10-credit investigation budget on basic statistics, variance, null patterns, class distributions, a correlation matrix, pair relationships, and baseline importance; then lock exactly 8 evidence-backed features.
 4. **Quality lab** — spend repair credits on server-side data-quality fixes.
 5. **ML arena** — run fixed validation for five models and export `submission.csv`.
 
