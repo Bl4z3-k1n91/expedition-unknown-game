@@ -7,10 +7,12 @@ export const DATASETS = [
 ];
 export const SOURCE_URL = "https://archive.ics.uci.edu/dataset/186/wine+quality";
 export const hash = value => { let n = 2166136261; for (const c of value) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0; };
+export const WILDLIFE_CLASSES = ["Elephant", "Giraffe", "Human", "Empty"];
+const wildlifeLabel = alcohol => alcohol < 9.5 ? "Empty" : alcohol < 10.5 ? "Human" : alcohol < 11.5 ? "Giraffe" : "Elephant";
 export function loadRows(dataset) {
   const [header, ...lines] = readFileSync(new URL(`../data/${dataset.file}`, import.meta.url), "utf8").trim().split(/\r?\n/);
   const columns = header.split(";").map(x => x.replaceAll('"', '').replaceAll(' ', '_'));
-  return lines.map((line, index) => { const values = line.split(";").map(Number), row = { id: `${dataset.id}-${String(index + 1).padStart(4, "0")}` }; columns.forEach((column, i) => { if (column !== "quality") row[column] = values[i]; }); row.target = `quality_${values[columns.indexOf("quality")]}`; return row; });
+  return lines.map((line, index) => { const values = line.split(";").map(Number), row = { id: `${dataset.id}-${String(index + 1).padStart(4, "0")}` }; columns.forEach((column, i) => { if (column !== "quality") row[column] = values[i]; }); row.target = wildlifeLabel(values[columns.indexOf("alcohol")]); return row; });
 }
 export function assignment(room) {
   const dataset = DATASETS[hash(room) % DATASETS.length];

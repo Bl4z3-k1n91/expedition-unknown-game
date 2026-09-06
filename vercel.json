@@ -5,6 +5,8 @@
     "api/heartbeat.js": { "maxDuration": 10, "regions": ["bom1"] },
     "api/mission.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
     "api/recovery.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
+    "api/camera.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
+    "api/labels.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
     "api/run.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" }
   },
   "rewrites": [

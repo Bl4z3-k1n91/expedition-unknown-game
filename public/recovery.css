@@ -1,34 +1,3 @@
-/* Stage 1 gets a full-width reconstruction desk after the archive. */
-.recovery-layout{display:block!important}
-.recovery-layout .archive{width:100%}
-.recovery-layout .recovery-bin{position:static!important;width:100%;margin-top:26px;padding:0 0 20px;border:1px solid var(--acid);background:#0d2028;box-shadow:0 18px 44px rgba(0,0,0,.2)}
-.recovery-layout .recovery-bin .panel-title{padding:15px 18px;background:#142d35}
-.recovery-layout .recovery-bin>p{max-width:760px;margin:16px 18px}
-.recovery-layout .recovery-bin .bin-item{margin:0 18px;padding:18px;border-left:3px solid var(--acid);background:#102730}
-.recovery-layout .recovery-bin table{font-size:11px}
-.recovery-layout .recovery-bin .recovery-message{margin:14px 18px}
-.recovery-layout .recovery-bin .primary{margin-left:18px;width:auto}
-.transmission-manifest{margin:22px 0 26px;border:1px solid #365159;background:#102730}
-.transmission-manifest .panel-title{padding:13px 16px;background:#142d35}
-.transmission-manifest ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;padding:1px;list-style:none;background:#365159;counter-reset:manifest}
-.transmission-manifest li{position:relative;min-height:74px;padding:12px 14px 12px 38px;background:#102730;color:#c6d5d4;font:10px/1.45 'DM Mono'}
-.transmission-manifest li:before{counter-increment:manifest;content:"0" counter(manifest);position:absolute;left:14px;top:13px;color:var(--acid);font-weight:700}
-.transmission-manifest li b,.transmission-manifest li small,.transmission-manifest li code{display:block}
-.transmission-manifest li small{margin:3px 0 7px;color:#91a7a8}
-.transmission-manifest code,.file-fingerprint code{overflow-wrap:anywhere;color:#d7f158;font:9px/1.4 'DM Mono'}
-.recovery-file .transmission-role{margin-bottom:3px;color:#d7f158;font:700 10px/1.4 'DM Mono'}
-.recovery-file .transmission-role+p{min-height:36px;margin-top:0;color:#a9c7cb}
-.file-fingerprint{margin:12px 0;padding:8px 10px;border-left:2px solid #527079;background:#0b1d24}
-.file-fingerprint span{display:block;margin-bottom:4px;color:#91a7a8;font:9px 'DM Mono'}
-.custody-console{display:grid;grid-template-columns:1fr auto;gap:8px 22px;align-items:center;margin:0 0 26px;padding:16px 18px;border:1px solid #527079;background:linear-gradient(90deg,#122f38,#102730)}
-.custody-console b,.custody-console small{display:block;font:700 11px 'DM Mono'}
-.custody-console small{margin-top:5px;color:#d7f158}
-.custody-console p{grid-column:1/-1;margin:0;color:#b8c9c8;font:12px/1.5 Manrope}
-.custody-console .recovery-message{grid-column:1/-1;margin:0}
-.custody-choice{display:flex;align-items:center;gap:7px;margin:12px 0;color:#91a7a8;font:9px 'DM Mono'}
-.custody-choice button{border:1px solid #49666d;background:transparent;color:#b8c9c8;padding:5px 7px;font:700 9px 'DM Mono';cursor:pointer}
-.custody-choice button.chosen{border-color:#d7f158;background:#24362f;color:#d7f158}
-.recovery-file.quarantine{border-left-color:#ff805c}
-.recovery-file.trusted{border-left-color:#d7f158}
-@media(max-width:720px){.custody-console{grid-template-columns:1fr}.custody-console .secondary{width:100%}}
-@media(max-width:720px){.transmission-manifest ol{grid-template-columns:1fr}.recovery-file .transmission-role+p{min-height:0}}
+/* Recovery-specific refinements keep the forensic workspace modular. */
+.archive,.recovery-bin{width:100%}.recovery-bin{margin-top:22px}.recovery-file:has(button:disabled) .range,.recovery-file:has(button:disabled) .column-picks{opacity:.45}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}

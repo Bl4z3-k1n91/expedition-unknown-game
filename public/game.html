@@ -1,1 +1,22 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition Unknown</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="/mission.css"><link rel="stylesheet" href="/recovery.css"></head><body><header class="mission-head"><a href="/" class="mission-logo">EXPEDITION <i>UNKNOWN</i></a><p id="mission-status">CONNECTING TO MISSION CONTROL…</p><button id="export" disabled>EXPORT submission.csv ↓</button></header><main class="mission-shell"><aside class="rail"><p>MISSION PROGRESS</p><button class="stage active" data-stage="recovery"><b>01</b> Data recovery</button><button class="stage" data-stage="labelling"><b>02</b> Data labelling</button><button class="stage" data-stage="features"><b>03</b> Feature hunt</button><button class="stage" data-stage="quality"><b>04</b> Quality lab</button><button class="stage" data-stage="arena"><b>05</b> ML arena</button><div class="credits"><span>FEATURE CREDITS</span><strong id="f-credit">10 / 10</strong><span>REPAIR CREDITS</span><strong id="r-credit">15 / 15</strong></div></aside><section id="workspace" class="workspace"><div class="loading">SECURING THE ASSIGNED DATASET…</div></section></main><script src="/game.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Expedition Unknown // Field Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/mission.css"><link rel="stylesheet" href="/recovery.css">
+</head>
+<body class="app-body">
+  <div class="app-window">
+    <header class="titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>EXPEDITION UNKNOWN</strong><span id="mission-status">CONNECTING TO MISSION CONTROL…</span><button id="export" disabled>Export submission.csv</button></header>
+    <div class="app-shell">
+      <nav class="activitybar"><a href="/" title="Home">⌂</a><button class="selected" title="Mission files">▱</button><button title="Evidence">◫</button><button title="Model lab">⌘</button><span></span><button title="Account">◎</button></nav>
+      <aside class="rail"><div class="rail-head"><small>MISSION</small><b>KESTREL / 07</b></div><p>DATA HEIST</p><button class="stage active" data-stage="recovery"><b>01</b><span>Data recovery<small>Forensic archive</small></span></button><button class="stage" data-stage="labelling"><b>02</b><span>Image labelling<small>50 camera frames</small></span></button><button class="stage" data-stage="features"><b>03</b><span>Feature hunt<small>Keep 8 signals</small></span></button><p>MODEL WAR</p><button class="stage" data-stage="quality"><b>04</b><span>Quality lab<small>Repair budget</small></span></button><button class="stage" data-stage="arena"><b>05</b><span>ML arena<small>Hidden evaluation</small></span></button><div class="credits"><span>FEATURE CREDITS</span><strong id="f-credit">10 / 10</strong><span>REPAIR CREDITS</span><strong id="r-credit">15 / 15</strong></div></aside>
+      <main id="workspace" class="workspace"><div class="loading"><i></i>SECURING SERVER-ASSIGNED DATASET…</div></main>
+    </div>
+    <footer class="statusbar"><span><i></i> Mission link encrypted</span><span>SERVER AUTHORITY · BOM1</span><span>UTF-8&nbsp;&nbsp; SHA-256&nbsp;&nbsp; LIVE</span></footer>
+  </div>
+  <script src="/game.js"></script>
+</body>
+</html>
