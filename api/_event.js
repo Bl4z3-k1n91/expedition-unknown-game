@@ -9,6 +9,12 @@ export const SOURCE_URL = "https://archive.ics.uci.edu/dataset/186/wine+quality"
 export const hash = value => { let n = 2166136261; for (const c of value) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0; };
 export const WILDLIFE_CLASSES = ["Elephant", "Giraffe", "Human", "Empty"];
 const wildlifeLabel = alcohol => alcohol < 9.5 ? "Empty" : alcohol < 10.5 ? "Human" : alcohol < 11.5 ? "Giraffe" : "Elephant";
+const SIGNAL_PROFILES = [
+  [["fixed_acidity", .45], ["residual_sugar", .3], ["alcohol", .25]],
+  [["volatile_acidity", .4], ["density", .35], ["sulphates", .25]],
+  [["citric_acid", .4], ["total_sulfur_dioxide", .35], ["pH", .25]],
+  [["chlorides", .4], ["free_sulfur_dioxide", .3], ["alcohol", .3]]
+];
 export function loadRows(dataset) {
   const [header, ...lines] = readFileSync(new URL(`../data/${dataset.file}`, import.meta.url), "utf8").trim().split(/\r?\n/);
   const columns = header.split(";").map(x => x.replaceAll('"', '').replaceAll(' ', '_'));
@@ -16,10 +22,13 @@ export function loadRows(dataset) {
 }
 export function assignment(room) {
   const dataset = DATASETS[hash(room) % DATASETS.length];
-  const ordered = loadRows(dataset).sort((a, b) => (hash(`${room}:${a.id}`) % 100000) - (hash(`${room}:${b.id}`) % 100000));
+  const ordered = loadRows(dataset).sort((a, b) => (hash(`${room}:${a.id}`) % 100000) - (hash(`${room}:${b.id}`) % 100000)).slice(0, 300), profile = SIGNAL_PROFILES[hash(`${room}:profile`) % SIGNAL_PROFILES.length];
+  const moments = Object.fromEntries(profile.map(([feature]) => { const values = ordered.map(row => Number(row[feature])), mean = values.reduce((sum, value) => sum + value, 0) / values.length, deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length) || 1; return [feature, { mean, deviation }]; }));
+  const ranked = ordered.map((row, index) => ({ index, score: profile.reduce((sum, [feature, weight]) => sum + weight * ((Number(row[feature]) - moments[feature].mean) / moments[feature].deviation), 0) + (hash(`${room}:${row.id}:signal`) % 1000) / 100000 } )).sort((a, b) => a.score - b.score);
+  ranked.forEach((entry, rank) => { ordered[entry.index].target = ["Empty", "Human", "Giraffe", "Elephant"][Math.min(3, Math.floor(rank * 4 / ranked.length))]; });
   const working = ordered.slice(0, 200), hidden = ordered.slice(200, 300);
   const features = Object.keys(working[0]).filter(x => !["id", "target"].includes(x));
-  return { dataset, features, known: working.slice(0, 150), unknown: working.slice(150), hidden };
+  return { dataset, features, known: working.slice(0, 150), unknown: working.slice(150), hidden, profileId: `SIG-${String((hash(`${room}:profile`) % SIGNAL_PROFILES.length) + 1).padStart(2, "0")}` };
 }
 export function qualityLab(event) {
   const rows = [...event.known, ...event.unknown].map(row => ({ ...row }));

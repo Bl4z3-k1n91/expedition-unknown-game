@@ -14,7 +14,7 @@ const BUDGET = 10;
 const secret = () => process.env.MATCH_GATEWAY_SECRET || "expedition-local-analysis-state";
 const sign = payload => createHmac("sha256", secret()).update(payload).digest("base64url");
 function pack(state) { const payload = Buffer.from(JSON.stringify(state)).toString("base64url"); return `${payload}.${sign(payload)}`; }
-function unpack(token, room, player) {
+export function verifyAnalysisState(token, room, player) {
   if (!token) return { room, player, spent: 0, purchases: [] };
   const [payload, signature] = String(token).split(".");
   if (!payload || !signature) throw new Error("INVALID_ANALYSIS_STATE");
@@ -24,6 +24,7 @@ function unpack(token, room, player) {
   if (state.room !== room || state.player !== player || !Array.isArray(state.purchases)) throw new Error("INVALID_ANALYSIS_STATE");
   return state;
 }
+export function evidenceKey(type, scope, cohort, feature, secondFeature) { return scope === "global" ? `${cohort}:${type}` : scope === "pair" ? `${cohort}:${type}:${feature}:${secondFeature}` : `${cohort}:${type}:${feature}`; }
 const round = value => Number.isFinite(value) ? Number(value.toFixed(4)) : null;
 const numeric = values => values.filter(value => value !== null && value !== undefined && Number.isFinite(Number(value))).map(Number);
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : NaN;
@@ -32,7 +33,7 @@ function summary(rows, feature) {
   const variance = values.length ? mean(values.map(value => (value - average) ** 2)) : NaN;
   return { count: values.length, missingCount: rows.length - values.length, missingPct: round((rows.length - values.length) * 100 / rows.length), mean: round(average), median: round(values.length % 2 ? values[(values.length - 1) / 2] : (values[values.length / 2 - 1] + values[values.length / 2]) / 2), variance: round(variance), stdDev: round(Math.sqrt(variance)), min: round(values[0]), max: round(values.at(-1)), range: round(values.at(-1) - values[0]) };
 }
-function correlation(rows, a, b) {
+export function correlation(rows, a, b) {
   const pairs = rows.filter(row => Number.isFinite(Number(row[a])) && Number.isFinite(Number(row[b]))).map(row => [Number(row[a]), Number(row[b])]);
   if (pairs.length < 2) return null;
   const ma = mean(pairs.map(pair => pair[0])), mb = mean(pairs.map(pair => pair[1]));
@@ -40,7 +41,7 @@ function correlation(rows, a, b) {
   return round(da && db ? numerator / (da * db) : 0);
 }
 const gini = labels => { const counts = Object.values(labels.reduce((map, label) => ({ ...map, [label]: (map[label] || 0) + 1 }), {})); return 1 - counts.reduce((sum, count) => sum + (count / labels.length) ** 2, 0); };
-function stumpImportance(rows, feature) {
+export function stumpImportance(rows, feature) {
   const points = rows.filter(row => Number.isFinite(Number(row[feature]))).map(row => ({ value: Number(row[feature]), label: row.target })).sort((a, b) => a.value - b.value);
   if (points.length < 4) return 0;
   const parent = gini(points.map(point => point.label)); let best = 0;
@@ -60,17 +61,18 @@ function analyze(type, rows, features, feature, secondFeature) {
 
 export default function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "POST required" });
-  const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20), type = clean(req.body?.type, 20), feature = clean(req.body?.feature, 48), secondFeature = clean(req.body?.secondFeature, 48), labels = req.body?.labels || {}, config = CATALOG[type];
+  const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20), type = clean(req.body?.type, 20), cohort = clean(req.body?.cohort, 20) || "all", feature = clean(req.body?.feature, 48), secondFeature = clean(req.body?.secondFeature, 48), labels = req.body?.labels || {}, config = CATALOG[type];
   if (!room || !player || !config) return json(res, 400, { error: "Room, player, and a valid investigation are required." });
   const event = assignment(room), features = event.features;
   if (config.scope !== "global" && !features.includes(feature)) return json(res, 400, { error: "Choose a valid feature to investigate." });
   if (config.scope === "pair" && (!features.includes(secondFeature) || feature === secondFeature)) return json(res, 400, { error: "Choose two different valid features." });
+  if (!["all", "known", "field"].includes(cohort)) return json(res, 400, { error: "Choose a valid analysis cohort." });
   if (event.unknown.some(row => !WILDLIFE_CLASSES.includes(labels[row.id]))) return json(res, 409, { error: "Lock all 50 field labels before opening Feature Hunt." });
   try {
-    const state = unpack(req.body?.analysisState, room, player), key = config.scope === "global" ? type : config.scope === "pair" ? `${type}:${feature}:${secondFeature}` : `${type}:${feature}`, alreadyPurchased = state.purchases.includes(key);
+    const state = verifyAnalysisState(req.body?.analysisState, room, player), key = evidenceKey(type, config.scope, cohort, feature, secondFeature), alreadyPurchased = state.purchases.includes(key);
     if (!alreadyPurchased && state.spent + config.cost > BUDGET) return json(res, 409, { error: `This investigation costs ${config.cost} credits; only ${BUDGET - state.spent} remain.` });
-    const working = qualityLab(event).map((row, index) => index < 150 ? row : { ...row, target: labels[event.unknown[index - 150].id] });
+    const complete = qualityLab(event).map((row, index) => index < 150 ? row : { ...row, target: labels[event.unknown[index - 150].id] }), working = cohort === "known" ? complete.slice(0, 150) : cohort === "field" ? complete.slice(150) : complete;
     const next = alreadyPurchased ? state : { ...state, spent: state.spent + config.cost, purchases: [...state.purchases, key] };
-    return json(res, 200, { result: analyze(type, working, features, feature, secondFeature), cost: alreadyPurchased ? 0 : config.cost, replayed: alreadyPurchased, creditsRemaining: BUDGET - next.spent, spent: next.spent, purchases: next.purchases, analysisState: pack(next) });
+    return json(res, 200, { result: { ...analyze(type, working, features, feature, secondFeature), cohort, recordCount: working.length }, cost: alreadyPurchased ? 0 : config.cost, replayed: alreadyPurchased, creditsRemaining: BUDGET - next.spent, spent: next.spent, purchases: next.purchases, analysisState: pack(next) });
   } catch (error) { return json(res, 409, { error: error.message === "INVALID_ANALYSIS_STATE" ? "Investigation ledger could not be verified. Reload the mission." : error.message }); }
 }

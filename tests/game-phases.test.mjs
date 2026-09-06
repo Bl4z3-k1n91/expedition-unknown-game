@@ -4,6 +4,7 @@ import { assignment, WILDLIFE_CLASSES } from "../api/_event.js";
 import labelsHandler from "../api/labels.js";
 import cameraHandler from "../api/camera.js";
 import analyzeHandler from "../api/analyze.js";
+import featuresHandler from "../api/features.js";
 
 const response = () => ({ statusCode: 200, headers: {}, setHeader(name, value) { this.headers[name] = value; }, end(body) { this.body = body; } });
 
@@ -44,4 +45,20 @@ test("feature investigations reveal evidence and enforce the 10-credit ledger", 
   assert.equal(blocked.statusCode, 200); assert.equal(blocked.body.creditsRemaining, 1);
   const finalBlocked = invoke({ type: "classwise", feature: "alcohol", analysisState: blocked.body.analysisState });
   assert.equal(finalBlocked.statusCode, 409); assert.match(finalBlocked.body.error, /only 1 remain/);
+});
+
+test("cohort branches produce different evidence and an evidence-backed dossier locks", () => {
+  const room = "100003", event = assignment(room), labels = Object.fromEntries(event.unknown.map(row => [row.id, row.target]));
+  const invoke = (handler, body) => { const res = response(); res.status = code => { res.statusCode = code; return res; }; res.json = value => { res.body = value; }; handler({ method: "POST", body: { room, player: "brancher", labels, ...body } }, res); return res; };
+  const known = invoke(analyzeHandler, { type: "stats", cohort: "known", feature: "alcohol" }), field = invoke(analyzeHandler, { type: "stats", cohort: "field", feature: "alcohol", analysisState: known.body.analysisState });
+  assert.equal(known.body.result.recordCount, 150); assert.equal(field.body.result.recordCount, 50); assert.notEqual(known.body.result.summary.mean, field.body.result.summary.mean);
+  const matrix = invoke(analyzeHandler, { type: "correlation", cohort: "all", analysisState: field.body.analysisState });
+  const selected = event.features.slice(0, 8), rationales = Object.fromEntries(selected.map(feature => [feature, "independence"]));
+  const locked = invoke(featuresHandler, { features: selected, rationales, analysisState: matrix.body.analysisState });
+  assert.equal(locked.statusCode, 200); assert.equal(locked.body.locked, true); assert.equal(locked.body.selected.length, 8); assert.ok(locked.body.score >= 0 && locked.body.score <= 100);
+});
+
+test("rooms use different hidden signal profiles", () => {
+  const profiles = new Set(["100001", "100002", "100003", "100004", "100005", "100006"].map(room => assignment(room).profileId));
+  assert.ok(profiles.size >= 3);
 });

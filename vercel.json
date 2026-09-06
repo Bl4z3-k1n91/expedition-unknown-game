@@ -8,6 +8,7 @@
     "api/camera.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
     "api/labels.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
     "api/analyze.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
+    "api/features.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" },
     "api/run.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/*.csv" }
   },
   "rewrites": [
