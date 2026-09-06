@@ -11,7 +11,7 @@ The game has five stages:
 
 1. **Data recovery** — investigate six intercepted transmissions, classify each as trusted or quarantined from its SHA-256 fingerprint, then reconstruct a 200-record data package from approved fragments.
 2. **Image labelling** — classify 50 server-rendered camera-trap frames as Elephant, Giraffe, Human, or Empty. Telemetry supports each decision, and incorrect labels carry into model training.
-3. **Feature hunt** — spend a server-verified 10-credit investigation budget on basic statistics, variance, null patterns, class distributions, a correlation matrix, pair relationships, and baseline importance. Every investigation branches across the full 200 records, the trusted 150, or the team's 50 field labels. Teams must then lock exactly 8 features and attach a valid purchased-evidence rationale to each one.
+3. **Feature hunt** — spend a server-verified 10-credit investigation budget on basic statistics, variance, null patterns, class distributions, a correlation matrix, pair relationships, and baseline importance. Every investigation branches across the full 200 records, the trusted 150, or the team's 50 field labels. Teams must then lock exactly 8 features without entering a written or dropdown rationale.
 
 Each room receives a different hidden multi-signal ecology profile, so the strongest features vary between games. The server scores the locked dossier for predictive signal, coverage, independence, and investigation breadth; the same selected features continue into every later model run.
 4. **Quality lab** — spend repair credits on server-side data-quality fixes.

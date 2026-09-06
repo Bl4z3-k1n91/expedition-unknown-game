@@ -47,14 +47,14 @@ test("feature investigations reveal evidence and enforce the 10-credit ledger", 
   assert.equal(finalBlocked.statusCode, 409); assert.match(finalBlocked.body.error, /only 1 remain/);
 });
 
-test("cohort branches produce different evidence and an evidence-backed dossier locks", () => {
+test("cohort branches produce different evidence and eight features lock without rationales", () => {
   const room = "100003", event = assignment(room), labels = Object.fromEntries(event.unknown.map(row => [row.id, row.target]));
   const invoke = (handler, body) => { const res = response(); res.status = code => { res.statusCode = code; return res; }; res.json = value => { res.body = value; }; handler({ method: "POST", body: { room, player: "brancher", labels, ...body } }, res); return res; };
   const known = invoke(analyzeHandler, { type: "stats", cohort: "known", feature: "alcohol" }), field = invoke(analyzeHandler, { type: "stats", cohort: "field", feature: "alcohol", analysisState: known.body.analysisState });
   assert.equal(known.body.result.recordCount, 150); assert.equal(field.body.result.recordCount, 50); assert.notEqual(known.body.result.summary.mean, field.body.result.summary.mean);
   const matrix = invoke(analyzeHandler, { type: "correlation", cohort: "all", analysisState: field.body.analysisState });
-  const selected = event.features.slice(0, 8), rationales = Object.fromEntries(selected.map(feature => [feature, "independence"]));
-  const locked = invoke(featuresHandler, { features: selected, rationales, analysisState: matrix.body.analysisState });
+  const selected = event.features.slice(0, 8);
+  const locked = invoke(featuresHandler, { features: selected, analysisState: matrix.body.analysisState });
   assert.equal(locked.statusCode, 200); assert.equal(locked.body.locked, true); assert.equal(locked.body.selected.length, 8); assert.ok(locked.body.score >= 0 && locked.body.score <= 100);
 });
 
