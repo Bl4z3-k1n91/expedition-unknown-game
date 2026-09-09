@@ -1,5 +1,7 @@
-# Keep the Vercel function below its 225 MB bundle limit while retaining the
-# same production scikit-learn Pipeline API used by api/ml_pipeline.py.
-numpy==1.26.4
-scipy==1.12.0
-scikit-learn==1.4.2
+# Vercel first resolves root dependencies with CPython 3.14, then builds the
+# Python function with the 3.12 version in .python-version. Keep its runtime
+# bundle lean while preserving the same scikit-learn Pipeline API.
+numpy==1.26.4; python_version < "3.14"
+scipy==1.12.0; python_version < "3.14"
+scikit-learn==1.4.2; python_version < "3.14"
+scikit-learn==1.9.0; python_version >= "3.14"
