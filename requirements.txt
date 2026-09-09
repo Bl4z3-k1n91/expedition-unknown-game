@@ -1,1 +1,5 @@
-scikit-learn==1.9.0
+# Keep the Vercel function below its 225 MB bundle limit while retaining the
+# same production scikit-learn Pipeline API used by api/ml_pipeline.py.
+numpy==1.26.4
+scipy==1.12.0
+scikit-learn==1.4.2
