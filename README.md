@@ -4,6 +4,8 @@ An interface-driven multiplayer data-science game for **Events 2–5** of Operat
 
 The UI is adapted from **Adminator 4.3.0**, an MIT-licensed dashboard template. Vendored assets and the upstream license live in `public/vendor/adminator/`.
 
+For the full module map, request/response responsibilities, state flow, Kaggle export contract, data boundaries, and operational checklist, see [the implementation guide](docs/IMPLEMENTATION.md).
+
 ## Event flow
 
 ### Event 2 — Manual Override
