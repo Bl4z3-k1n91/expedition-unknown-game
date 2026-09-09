@@ -3,11 +3,11 @@
   "functions": {
     "api/join.js": { "maxDuration": 10, "regions": ["bom1"] },
     "api/heartbeat.js": { "maxDuration": 10, "regions": ["bom1"] },
-    "api/mission.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/labels.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/analyze.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/features.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/quality.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" }
+    "api/mission.js": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
+    "api/labels.js": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
+    "api/analyze.js": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
+    "api/features.js": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
+    "api/quality.js": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**" }
   },
   "rewrites": [
     { "source": "/api/health", "destination": "/api/health.js" }
