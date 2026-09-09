@@ -7,7 +7,7 @@ import analyzeHandler from "../api/analyze.js";
 import featuresHandler from "../api/features.js";
 import qualityHandler, { buildQualityPlan, scoreRepairPlan } from "../api/quality.js";
 import cameraHandler from "../api/camera.js";
-import { readFileSync } from "node:fs";
+import { buildKaggleScript, normalizeTuning } from "../public/kaggle-export.js";
 
 const response = () => ({ statusCode: 200, headers: {}, setHeader(name, value) { this.headers[name] = value; }, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; }, end(body) { this.body = body; } });
 const invoke = async (handler, body, query) => { const res = response(); await handler({ method: "POST", body, query }, res); return res; };
@@ -81,9 +81,12 @@ test("Emergency Feed is a low-score breakout route, not an alternate winning pat
   assert.equal(result.statusCode, 200); assert.equal(poorLock.body.strongCount, 4); assert.equal(result.body.featureScore, 0); assert.equal(result.body.qualityScore, 35); assert.deepEqual(result.body.features, event.backupFeatures);
 });
 
-test("Event 5 is implemented as a native Vercel scikit-learn pipeline", () => {
-  const source = readFileSync(new URL("../api/ml_pipeline.py", import.meta.url), "utf8"), entry = readFileSync(new URL("../api/run.py", import.meta.url), "utf8");
-  assert.match(source, /Pipeline\(\[/); assert.match(source, /SimpleImputer/); assert.match(source, /StandardScaler/); assert.match(source, /StratifiedKFold/); assert.match(source, /RandomForestClassifier/); assert.match(entry, /BaseHTTPRequestHandler/);
+test("Event 5 generates a model-specific Kaggle RandomizedSearchCV handoff", () => {
+  const tuning = normalizeTuning({ trials: 27, folds: 5, randomState: 90210 });
+  const script = buildKaggleScript({ model: "Random Forest", features: assignment("500005").features.slice(0, 10), repairs: { missingColumns: ["vehicle_count"], outlierColumns: [], labelRecords: [], duplicateGroups: [] }, tuning });
+  assert.match(script, /RandomizedSearchCV/); assert.match(script, /RandomForestClassifier/); assert.match(script, /N_ITER = 27/); assert.match(script, /CV_FOLDS = 5/); assert.match(script, /RANDOM_STATE = 90210/); assert.match(script, /best_estimator_/); assert.match(script, /randomized_search_results\.csv/); assert.match(script, /best_model_evaluation\.json/); assert.match(script, /FileLink\("submission\.csv"\)/); assert.doesNotMatch(script, /test_truth\.csv/);
+  const backup = buildKaggleScript({ model: "Support Vector Machine", features: assignment("500005").backupFeatures, emergencyFeed: true });
+  assert.match(backup, /train_backup_10\.csv/); assert.match(backup, /test_backup_10\.csv/); assert.match(backup, /SVC\(kernel=/);
 });
 
 test("the retired camera route states that Event 2 is tabular", () => {

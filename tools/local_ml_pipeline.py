@@ -25,6 +25,8 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 
+# Deliberately local-only: this evaluator exercises the real scikit-learn
+# pipeline during development. Production exports a Kaggle training cell.
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data" / "traffic"
 TRAFFIC_CLASSES = ["Free_Flow", "Heavy_Traffic", "Pedestrian_Event", "Incident", "Low_Activity"]

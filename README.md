@@ -34,16 +34,21 @@ The server applies the selected repairs to the supplied damaged archive and seal
 
 After Event 3, only teams that locked **four or fewer strong channels** can choose the Emergency Telemetry Feed. It irreversibly swaps both train and test to the supplied clean 10-channel backup pair, forfeits all Event 3 points, limits Event 4 to 35/100, and caps the final-model component at 70/100. The fixed 6-strong + 4-weak mix is a breakout route for a failed feature lock, not a route to a winning score: even perfect Event 2 and evaluation-efficiency results can produce at most 58/100 overall.
 
-### Event 5 — Live Grid Forecast
+### Event 5 — Kaggle Forecast Handoff
 
-Teams select Decision Tree, Logistic Regression, K-Nearest Neighbors, Random Forest, or Support Vector Machine. The backend is a native Vercel Python function using a real scikit-learn `Pipeline`: `SimpleImputer` → `StandardScaler` → selected classifier. Each validation or final submission uses one slot from a shared eight-run cap. Visible evaluations use deterministic stratified five-fold Macro F1. Final submission retrains the pipeline on the full training-ready archive, predicts the clean hidden 500-row feed, and downloads:
+Teams select Decision Tree, Logistic Regression, K-Nearest Neighbors, Random Forest, or Support Vector Machine, then provide a random-search trial count, stratified-CV fold count, and random seed. The app generates a model-specific Kaggle Python cell rather than training inside Vercel.
+
+The cell reproduces the sealed feature and repair decisions, builds a real scikit-learn `Pipeline` (`SimpleImputer` → `StandardScaler` → selected classifier), tunes its model-specific distributions with `RandomizedSearchCV` using Macro F1, refits the best configuration, and then evaluates that selected estimator with a second cross-validation. That final figure is clearly marked as post-tuning; use nested CV if an unbiased selection estimate is required.
+
+After running in Kaggle, the cell writes direct notebook download links for:
 
 ```csv
-event_id,prediction
-TST_00001,Free_Flow
+submission.csv
+randomized_search_results.csv
+best_model_evaluation.json
 ```
 
-The final score follows the supplied guide: Event 2 20%, Event 3 20%, Event 4 20%, evaluation efficiency 10%, and hidden-test Macro F1 30%.
+Upload the supplied traffic CSV files as a Kaggle Dataset before running the cell. `test_truth.csv` is not read by the generated code.
 
 ## Supplied data
 
@@ -65,21 +70,21 @@ Player / host browser
         │
         ├── Vercel static client
         └── Vercel API routes
-              ├── Supabase rooms and shared evaluation cap
+              ├── Supabase rooms and game admission
               ├── signed Event 2 / 3 / 4 state seals
               ├── server-side dataset diagnostics and repairs
-              └── Python/scikit-learn pipeline, five-fold validation, and hidden scoring
+              └── client-side Kaggle RandomizedSearchCV handoff
 ```
 
 The earlier weighted admission-router prototype remains in `/api/join` and `/api/heartbeat`; the current room flow uses Supabase-backed rooms and Vercel functions.
 
 ## Local setup
 
-Requirements: Node.js 20+, Python 3.12, and the Vercel CLI.
+Requirements: Node.js 20+, the Vercel CLI, and Python 3.12 only when running the local evaluator.
 
 ```bash
 npm install
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-local.txt
 vercel env pull .env.local
 npx vercel dev
 ```
@@ -94,7 +99,7 @@ For Supabase, run `supabase/room_schema.sql`, then configure `SUPABASE_URL`, `SU
 npm test
 python -m unittest discover -s tests -p "test_*.py" -v
 node --check public/game.js
-python -m py_compile api/run.py api/ml_pipeline.py
+python -m py_compile tools/local_ml_pipeline.py
 ```
 
-The tests cover dataset scale/parity, Manual Override priority/scoring, signed Feature Hunt state, repair-budget enforcement, the emergency feed, all five forecast models, hidden 500-row submission output, and the admission router.
+The tests cover dataset scale/parity, Manual Override priority/scoring, signed Feature Hunt state, repair-budget enforcement, the emergency feed, Kaggle code generation for the approved models, and the admission router. The local evaluator remains available for development-only scikit-learn checks; it is not deployed to Vercel.

@@ -7,8 +7,7 @@
     "api/labels.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
     "api/analyze.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
     "api/features.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/quality.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" },
-    "api/run.py": { "maxDuration": 60, "regions": ["bom1"], "includeFiles": "data/traffic/**", "excludeFiles": "{public/**,tests/**,tmp/**,data/winequality-*.csv}" }
+    "api/quality.js": { "maxDuration": 10, "regions": ["bom1"], "includeFiles": "data/traffic/**" }
   },
   "rewrites": [
     { "source": "/api/health", "destination": "/api/health.js" }

@@ -1,0 +1,2 @@
+# Development-only dependencies for the local evaluator and its tests.
+scikit-learn==1.9.0

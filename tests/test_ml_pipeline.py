@@ -5,7 +5,7 @@ import json
 import os
 import unittest
 
-from api.ml_pipeline import APPROVED_MODELS, build_pipeline, load_data, run_request
+from tools.local_ml_pipeline import APPROVED_MODELS, build_pipeline, load_data, run_request
 
 
 def pack_state(kind, **state):

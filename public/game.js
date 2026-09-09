@@ -1,3 +1,5 @@
+import { buildKaggleScript, kaggleFilename, normalizeTuning } from "/kaggle-export.js";
+
 const session = JSON.parse(sessionStorage.getItem("expedition-session") || "null");
 if (!session) window.location.replace("/");
 
@@ -12,11 +14,11 @@ const analysisCatalog = [
   ["relationship", "Channel relationship view", 2, "Compare two channels across five value bands."]
 ];
 const models = [
-  ["Decision Tree", "scikit-learn tree with balanced classes and bounded depth."],
-  ["Logistic Regression", "scikit-learn regularized multiclass linear baseline."],
-  ["K-Nearest Neighbors", "scikit-learn distance-weighted local voting."],
-  ["Random Forest", "scikit-learn 180-tree balanced ensemble."],
-  ["Support Vector Machine", "scikit-learn RBF support-vector classifier."]
+  ["Decision Tree", "Tune depth, split, leaf, criterion, and class weighting."],
+  ["Logistic Regression", "Tune regularization, solver, and class weighting."],
+  ["K-Nearest Neighbors", "Tune neighborhood size, distance rule, and metric."],
+  ["Random Forest", "Tune tree count, depth, split, features, and weighting."],
+  ["Support Vector Machine", "Tune C, RBF gamma, and class weighting."]
 ];
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const request = async (path, body) => { const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }), result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error), { result }); return result; };
@@ -25,7 +27,7 @@ let data, stage = "manual", highestStage = 0;
 let manualLabels = {}, manualLocked = false, manualState = "", manualResult = null, manualStatus = "";
 let selectedFeatures = new Set(), analysisType = "stats", analysisFeature = "", analysisSecond = "", analysisState = "", analysisCredits = 10, findings = [], featureState = "", featureResult = null, featureStatus = "";
 let qualityPlan = null, repairs = { missingColumns: new Set(), outlierColumns: new Set(), labelRecords: new Set(), duplicateGroups: new Set() }, emergencyFeed = false, qualityState = "", qualityResult = null, qualityStatus = "";
-let model = "Decision Tree", evaluationsUsed = 0, evaluationHistory = [], finalCsv = "", finalResult = null, forecastStatus = "";
+let model = "Decision Tree", tuning = normalizeTuning(), kaggleScript = "", forecastStatus = "";
 
 const featureName = name => data?.featureMeta?.[name]?.label || String(name).replaceAll("_", " ");
 const number = value => Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -38,7 +40,7 @@ function setStage(next) {
 function updateChrome() {
   featureCredit.textContent = `${analysisCredits} / 10`;
   const spent = repairSpend(); repairCredit.textContent = `${Math.max(0, 15 - spent)} / 15`;
-  evaluationCredit.textContent = `${Math.max(0, 8 - evaluationsUsed)} / 8`;
+  evaluationCredit.textContent = `${tuning.trials} trials`;
   document.querySelectorAll("[data-stage]").forEach(button => { const index = stageOrder.indexOf(button.dataset.stage); button.classList.toggle("active", button.dataset.stage === stage); button.classList.toggle("is-active", button.dataset.stage === stage); button.disabled = index > highestStage; });
 }
 
@@ -86,17 +88,13 @@ function renderQuality() {
     <section class="card"><div class="panel-title">Retry duplicates <span>${repairs.duplicateGroups.size}/4 groups selected</span></div><div class="repair-grid">${repairCards("duplicate", qualityPlan.duplicateGroups)}</div><div class="stage-actions"><span class="${qualityResult ? "recovery-message success" : "recovery-message"}">${esc(qualityStatus || `${spent}/15 credits committed. Repairs apply only after this event is sealed.`)}</span>${qualityResult ? `<button class="btn btn--primary" data-next="forecast">Open Event 5</button>` : `<button id="seal-quality" class="btn btn--primary">Seal Event 4 plan</button>`}</div></section>`;
 }
 
-function evaluationHtml(result) {
-  return `<section class="evaluation-report"><div class="evaluation-kpis"><div><small>Macro F1</small><strong>${result.score.toFixed(3)}</strong></div><div><small>5-fold stability</small><strong>±${result.stability.toFixed(3)}</strong></div><div><small>Weakest class</small><strong>${esc(result.weakestClass)}</strong></div><div><small>Training rows</small><strong>${result.trainingRecords}</strong></div></div><div class="evaluation-columns"><div><div class="panel-title">Per-class report <span>out-of-fold</span></div><table class="analysis-table"><thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody>${result.perClass.map(row => `<tr><th>${esc(row.label)}</th><td>${row.precision}</td><td>${row.recall}</td><td>${row.f1}</td></tr>`).join("")}</tbody></table></div><div><div class="panel-title">Fold scores <span>same protocol for every model</span></div><div class="metric-grid">${result.foldScores.map((score, index) => `<div><small>Fold ${index + 1}</small><strong>${score}</strong></div>`).join("")}</div></div></div></section>`;
-}
 function renderForecast() {
-  const latest = evaluationHistory.at(-1);
-  return `${sectionIntro("5", "Live Grid Forecast", "The hidden 500-row feed is clean and column-compatible with your final training tier. A server-side scikit-learn Pipeline imputes, scales, and fits every model. Spend from one shared eight-run cap, then retrain on all available rows and generate submission.csv.", ["Manual Override", "Feature Hunt", "Quality Lab", "Forecast"])}
-    <section class="incident-ribbon"><div><small>FINAL TEST FEED</small><b>500 clean unseen rows</b></div><div><small>PRIMARY METRIC</small><b>Macro F1</b></div><div><small>SHARED RUN CAP</small><b>${8 - evaluationsUsed}/8 left</b></div><div><small>OUTPUT SCHEMA</small><b>event_id, prediction</b></div></section>
-    <section class="card"><div class="panel-title">Model bench <span>Choose one predefined model</span></div><div class="model-grid">${models.map(item => { const prior = evaluationHistory.find(result => result.model === item[0]); return `<button class="model ${model === item[0] ? "selected" : ""}" data-model="${item[0]}" ${finalResult ? "disabled" : ""}><span>APPROVED PIPELINE</span><b>${esc(item[0])}</b><i class="protocol-name">STANDARDIZED · 5-FOLD CV</i><small>${esc(item[1])}</small>${prior ? `<strong class="model-result">BEST SEEN ${prior.score.toFixed(3)}</strong>` : ""}</button>`; }).join("")}</div>${latest ? evaluationHtml(latest) : `<div class="evaluation-empty"><span class="eyebrow">NO VALIDATION RUN YET</span><h3>Every experiment spends one shared run.</h3><p>The final submission also consumes a run. Keep one slot available to transmit your chosen model.</p></div>`}
-      <div class="validation-log"><section><div class="panel-title">Run history <span>${evaluationHistory.length} validation experiments</span></div><div class="validation-list">${evaluationHistory.length ? evaluationHistory.map((result, index) => `<div><span>${String(index + 1).padStart(2, "0")}</span><b>${esc(result.model)}</b><strong>${result.score.toFixed(3)} <small>F1</small></strong></div>`).join("") : `<div class="validation-empty">No model has been evaluated.</div>`}</div></section><section><div class="panel-title">Best validation <span>visible score only</span></div><div class="best-signal">${evaluationHistory.length ? `<div><strong>${Math.max(...evaluationHistory.map(result => result.score)).toFixed(3)}</strong><span>MACRO F1</span></div>` : `<div><strong>—</strong><span>AWAITING RUN</span></div>`}</div></section></div>
-      <div class="arena-bottom"><span>${esc(forecastStatus || "Backend: scikit-learn Pipeline · hidden labels remain server-side.")}</span><button id="evaluate" class="btn btn--ghost" ${finalResult || evaluationsUsed >= 8 ? "disabled" : ""}>Evaluate selected model</button><button id="submit-final" class="btn btn--primary" ${finalResult || evaluationsUsed >= 8 ? "disabled" : ""}>Final train + submit</button></div>
-      ${finalResult ? `<section class="epilogue ${finalResult.outcome.tier === "red" ? "red" : ""}"><header><span>${esc(finalResult.outcome.code)}</span><span>OVERALL ${finalResult.overallScore}/100</span></header><div><h2>${esc(finalResult.outcome.title)}</h2><p>${esc(finalResult.outcome.body)}</p><strong>Hidden Macro F1 ${finalResult.finalScore.toFixed(3)} · submission.csv contains 500 predictions.</strong></div><div class="score-breakdown">${Object.entries(finalResult.components).map(([key, value]) => `<div><small>${esc(key.replaceAll(/([A-Z])/g, " $1"))}</small><b>${value}</b></div>`).join("")}</div></section>` : ""}</section>`;
+  const outputNames = "submission.csv · randomized_search_results.csv · best_model_evaluation.json";
+  return `${sectionIntro("5", "Kaggle Forecast Handoff", "The app seals your decisions but does not train in production. Configure tuning here, then paste or download the generated Kaggle cell. It runs RandomizedSearchCV, evaluates the selected best configuration, and writes downloadable results.", ["Manual Override", "Feature Hunt", "Quality Lab", "Kaggle handoff"])}
+    <section class="incident-ribbon"><div><small>FINAL TEST FEED</small><b>500 clean unseen rows</b></div><div><small>SEARCH METHOD</small><b>RandomizedSearchCV</b></div><div><small>PRIMARY METRIC</small><b>Macro F1</b></div><div><small>OUTPUTS</small><b>3 Kaggle files</b></div></section>
+    <section class="card"><div class="panel-title">Model choice <span>One real scikit-learn pipeline per Kaggle run</span></div><div class="model-grid">${models.map(item => `<button class="model ${model === item[0] ? "selected" : ""}" data-model="${item[0]}"><span>RANDOMIZED SEARCH</span><b>${esc(item[0])}</b><i class="protocol-name">IMPUTE · SCALE · TUNE</i><small>${esc(item[1])}</small></button>`).join("")}</div></section>
+    <section class="card"><div class="panel-title">Hyperparameter tuning brief <span>These settings are embedded in the Kaggle cell</span></div><div class="analysis-config"><label>Random-search trials<input id="tuning-trials" type="number" min="5" max="100" value="${tuning.trials}"></label><label>Stratified CV folds<input id="tuning-folds" type="number" min="3" max="10" value="${tuning.folds}"></label><label>Random seed<input id="tuning-seed" type="number" min="0" max="999999" value="${tuning.randomState}"></label><a class="btn btn--ghost" href="https://www.kaggle.com/code/new" target="_blank" rel="noreferrer">Open Kaggle notebook</a></div><div class="analysis-status">The cell searches model-specific distributions with Macro F1, refits the best parameters, then runs a second cross-validation of that selected estimator. That second figure is post-tuning—not an unbiased nested-CV estimate.</div></section>
+    <section class="card"><div class="panel-title">Kaggle delivery <span>Upload the supplied traffic CSV files as a Kaggle Dataset first</span></div><div class="stage-actions"><span class="${kaggleScript ? "recovery-message success" : "recovery-message"}">${esc(forecastStatus || `The generated cell will save ${outputNames}. Kaggle renders direct download links after it finishes.`)}</span><button id="generate-kaggle" class="btn btn--primary">Generate Kaggle cell</button>${kaggleScript ? `<button id="copy-kaggle" class="btn btn--ghost">Copy cell</button>` : ""}</div>${kaggleScript ? `<pre class="analysis-status" style="margin:12px 0 0;white-space:pre-wrap;max-height:260px;overflow:auto">${esc(kaggleScript)}</pre>` : ""}</section>`;
 }
 
 function render() {
@@ -126,12 +124,14 @@ function bind() {
   const emergency = document.querySelector("#toggle-emergency"); if (emergency) emergency.onclick = () => { emergencyFeed = !emergencyFeed; qualityStatus = emergencyFeed ? "Emergency feed staged. Seal the event to make the swap irreversible." : "Emergency feed deselected."; render(); };
   document.querySelectorAll("[data-repair-kind]").forEach(button => button.onclick = () => toggleRepair(button.dataset.repairKind, button.dataset.repairId));
   const sealQuality = document.querySelector("#seal-quality"); if (sealQuality) sealQuality.onclick = async () => { sealQuality.disabled = true; try { qualityResult = await request("/api/quality", { room: session.room, player: session.player, action: "seal", featureState, emergencyFeed, repairs: Object.fromEntries(Object.entries(repairs).map(([key, value]) => [key, [...value]])) }); qualityState = qualityResult.qualityState; qualityStatus = qualityResult.message; highestStage = Math.max(highestStage, 3); render(); } catch (error) { qualityStatus = error.message; render(); } };
-  document.querySelectorAll("[data-model]").forEach(button => button.onclick = () => { model = button.dataset.model; render(); });
-  const evaluate = document.querySelector("#evaluate"); if (evaluate) evaluate.onclick = async () => { evaluate.disabled = true; forecastStatus = "Running stratified five-fold validation…"; render(); try { const result = await request("/api/run", { room: session.room, player: session.player, action: "evaluate", model, manualState, featureState, qualityState, evaluationsUsed: evaluationsUsed + 1 }); evaluationsUsed = result.usedEvaluations; evaluationHistory = [...evaluationHistory.filter(item => item.model !== result.model), result]; forecastStatus = `${result.model}: validation Macro F1 ${result.score.toFixed(3)}.`; render(); } catch (error) { forecastStatus = error.message; render(); } };
-  const submit = document.querySelector("#submit-final"); if (submit) submit.onclick = async () => { submit.disabled = true; forecastStatus = "Retraining on the full repaired archive and scoring the sealed feed…"; render(); try { finalResult = await request("/api/run", { room: session.room, player: session.player, action: "submit", model, manualState, featureState, qualityState, evaluationsUsed: evaluationsUsed + 1 }); evaluationsUsed = finalResult.usedEvaluations; finalCsv = finalResult.csv; download.disabled = false; forecastStatus = `Final hidden Macro F1 ${finalResult.finalScore.toFixed(3)} · overall ${finalResult.overallScore}/100.`; render(); } catch (error) { forecastStatus = error.message; render(); } };
+  document.querySelectorAll("[data-model]").forEach(button => button.onclick = () => { model = button.dataset.model; kaggleScript = ""; download.disabled = true; forecastStatus = ""; render(); });
+  const tuningTrials = document.querySelector("#tuning-trials"), tuningFolds = document.querySelector("#tuning-folds"), tuningSeed = document.querySelector("#tuning-seed");
+  [tuningTrials, tuningFolds, tuningSeed].filter(Boolean).forEach(input => input.onchange = () => { tuning = normalizeTuning({ trials: tuningTrials.value, folds: tuningFolds.value, randomState: tuningSeed.value }); kaggleScript = ""; download.disabled = true; forecastStatus = ""; render(); });
+  const generateKaggle = document.querySelector("#generate-kaggle"); if (generateKaggle) generateKaggle.onclick = () => { try { const finalRepairs = qualityResult?.emergencyFeed ? {} : Object.fromEntries(Object.entries(repairs).map(([key, value]) => [key, [...value]])); kaggleScript = buildKaggleScript({ model, features: qualityResult?.features || featureResult?.selected, emergencyFeed: Boolean(qualityResult?.emergencyFeed), repairs: finalRepairs, tuning }); download.disabled = false; forecastStatus = `${model} Kaggle cell ready. Paste it into a Kaggle notebook or download it from the top bar.`; render(); } catch (error) { forecastStatus = error.message; render(); } };
+  const copyKaggle = document.querySelector("#copy-kaggle"); if (copyKaggle) copyKaggle.onclick = async () => { try { await navigator.clipboard.writeText(kaggleScript); forecastStatus = "Kaggle cell copied to the clipboard."; render(); } catch { forecastStatus = "Clipboard access was blocked. Use the download button in the top bar instead."; render(); } };
 }
 
-download.onclick = () => { if (!finalCsv) return; const url = URL.createObjectURL(new Blob([finalCsv], { type: "text/csv" })), link = document.createElement("a"); link.href = url; link.download = "submission.csv"; link.click(); URL.revokeObjectURL(url); };
+download.onclick = () => { if (!kaggleScript) return; const url = URL.createObjectURL(new Blob([kaggleScript], { type: "text/x-python" })), link = document.createElement("a"); link.href = url; link.download = kaggleFilename(model); link.click(); URL.revokeObjectURL(url); };
 document.querySelectorAll("[data-stage]").forEach(button => button.onclick = () => setStage(button.dataset.stage));
 request("/api/mission", session).then(result => {
   data = result; analysisFeature = data.features[0]; analysisSecond = data.features[1];
