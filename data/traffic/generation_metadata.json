@@ -1,0 +1,109 @@
+{
+  "seed": 42,
+  "n_train": 2000,
+  "n_train_delivered": 2030,
+  "n_test": 500,
+  "label_noise": 0.07,
+  "classes": [
+    "Free_Flow",
+    "Heavy_Traffic",
+    "Pedestrian_Event",
+    "Incident",
+    "Low_Activity"
+  ],
+  "strong_features": [
+    "vehicle_count",
+    "avg_vehicle_speed_kmph",
+    "road_occupancy_pct",
+    "pedestrian_count",
+    "time_of_day_hr",
+    "visibility_m",
+    "rain_intensity_mmhr",
+    "signal_wait_time_s",
+    "road_wetness_pct",
+    "incident_distance_m"
+  ],
+  "weak_features": [
+    "noise_level_db",
+    "ambient_temperature_c",
+    "humidity_pct",
+    "camera_exposure_score",
+    "camera_focus_score",
+    "lane_marking_visibility_pct"
+  ],
+  "backup_features": [
+    "road_occupancy_pct",
+    "pedestrian_count",
+    "vehicle_count",
+    "avg_vehicle_speed_kmph",
+    "signal_wait_time_s",
+    "time_of_day_hr",
+    "noise_level_db",
+    "ambient_temperature_c",
+    "camera_exposure_score",
+    "humidity_pct"
+  ],
+  "train_class_distribution": {
+    "Free_Flow": 554,
+    "Incident": 273,
+    "Heavy_Traffic": 470,
+    "Low_Activity": 337,
+    "Pedestrian_Event": 366
+  },
+  "test_class_distribution": {
+    "Free_Flow": 129,
+    "Low_Activity": 110,
+    "Heavy_Traffic": 129,
+    "Incident": 60,
+    "Pedestrian_Event": 72
+  },
+  "injected_problems": {
+    "missing_value": 525,
+    "outlier": 40,
+    "wrong_label": 50,
+    "exact_duplicate": 22,
+    "near_duplicate": 8
+  },
+  "image_round_thresholds": {
+    "pedestrian_threshold": 11,
+    "pedestrian_separation": 0.883,
+    "vehicle_threshold": 24,
+    "vehicle_separation": 0.873,
+    "occupancy_threshold_pct": 40.0,
+    "occupancy_separation": 0.925,
+    "vehicle_threshold_relaxed": 20,
+    "empty_frame_vehicle_max": 2
+  },
+  "column_parity": {
+    "train_16.csv / test_16.csv": [
+      "vehicle_count",
+      "avg_vehicle_speed_kmph",
+      "road_occupancy_pct",
+      "pedestrian_count",
+      "time_of_day_hr",
+      "visibility_m",
+      "rain_intensity_mmhr",
+      "signal_wait_time_s",
+      "road_wetness_pct",
+      "incident_distance_m",
+      "noise_level_db",
+      "ambient_temperature_c",
+      "humidity_pct",
+      "camera_exposure_score",
+      "camera_focus_score",
+      "lane_marking_visibility_pct"
+    ],
+    "train_backup_10.csv / test_backup_10.csv": [
+      "road_occupancy_pct",
+      "pedestrian_count",
+      "vehicle_count",
+      "avg_vehicle_speed_kmph",
+      "signal_wait_time_s",
+      "time_of_day_hr",
+      "noise_level_db",
+      "ambient_temperature_c",
+      "camera_exposure_score",
+      "humidity_pct"
+    ]
+  }
+}

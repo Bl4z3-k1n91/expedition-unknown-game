@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { clean, json } from "./_gateway.js";
-import { assignment, qualityLab, WILDLIFE_CLASSES } from "./_event.js";
+import { assignment, TRAFFIC_CLASSES } from "./_event.js";
 
 const CATALOG = {
   stats: { cost: 1, scope: "feature" },
@@ -51,7 +51,7 @@ export function stumpImportance(rows, feature) {
 function analyze(type, rows, features, feature, secondFeature) {
   if (type === "stats") return { kind: type, feature, summary: summary(rows, feature) };
   if (type === "missing") { const missingRows = rows.map((row, index) => row[feature] == null ? `EX-${String(index + 1).padStart(3, "0")}` : null).filter(Boolean); return { kind: type, feature, missingCount: missingRows.length, missingPct: round(missingRows.length * 100 / rows.length), affectedRecords: missingRows, completeCount: rows.length - missingRows.length }; }
-  if (type === "classwise") return { kind: type, feature, classes: WILDLIFE_CLASSES.map(label => ({ label, ...summary(rows.filter(row => row.target === label), feature) })) };
+  if (type === "classwise") return { kind: type, feature, classes: TRAFFIC_CLASSES.map(label => ({ label, ...summary(rows.filter(row => row.target === label), feature) })) };
   if (type === "correlation") return { kind: type, features, matrix: features.map(a => features.map(b => correlation(rows, a, b))) };
   if (type === "importance") return { kind: type, ranking: features.map(name => ({ feature: name, importance: stumpImportance(rows, name) })).sort((a, b) => b.importance - a.importance).map((item, index) => ({ ...item, rank: index + 1 })) };
   const coefficient = correlation(rows, feature, secondFeature), ordered = numeric(rows.map(row => row[feature])).sort((a, b) => a - b), bins = [];
@@ -61,17 +61,15 @@ function analyze(type, rows, features, feature, secondFeature) {
 
 export default function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "POST required" });
-  const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20), type = clean(req.body?.type, 20), cohort = clean(req.body?.cohort, 20) || "all", feature = clean(req.body?.feature, 48), secondFeature = clean(req.body?.secondFeature, 48), labels = req.body?.labels || {}, config = CATALOG[type];
+  const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20), type = clean(req.body?.type, 20), cohort = "training", feature = clean(req.body?.feature, 48), secondFeature = clean(req.body?.secondFeature, 48), config = CATALOG[type];
   if (!room || !player || !config) return json(res, 400, { error: "Room, player, and a valid investigation are required." });
   const event = assignment(room), features = event.features;
   if (config.scope !== "global" && !features.includes(feature)) return json(res, 400, { error: "Choose a valid feature to investigate." });
   if (config.scope === "pair" && (!features.includes(secondFeature) || feature === secondFeature)) return json(res, 400, { error: "Choose two different valid features." });
-  if (!["all", "known", "field"].includes(cohort)) return json(res, 400, { error: "Choose a valid analysis cohort." });
-  if (event.unknown.some(row => !WILDLIFE_CLASSES.includes(labels[row.id]))) return json(res, 409, { error: "Lock all 50 field labels before opening Feature Hunt." });
   try {
     const state = verifyAnalysisState(req.body?.analysisState, room, player), key = evidenceKey(type, config.scope, cohort, feature, secondFeature), alreadyPurchased = state.purchases.includes(key);
     if (!alreadyPurchased && state.spent + config.cost > BUDGET) return json(res, 409, { error: `This investigation costs ${config.cost} credits; only ${BUDGET - state.spent} remain.` });
-    const complete = qualityLab(event).map((row, index) => index < 150 ? row : { ...row, target: labels[event.unknown[index - 150].id] }), working = cohort === "known" ? complete.slice(0, 150) : cohort === "field" ? complete.slice(150) : complete;
+    const working = event.trainDamaged.map(row => ({ ...row, target: row.label }));
     const next = alreadyPurchased ? state : { ...state, spent: state.spent + config.cost, purchases: [...state.purchases, key] };
     return json(res, 200, { result: { ...analyze(type, working, features, feature, secondFeature), cohort, recordCount: working.length }, cost: alreadyPurchased ? 0 : config.cost, replayed: alreadyPurchased, creditsRemaining: BUDGET - next.spent, spent: next.spent, purchases: next.purchases, analysisState: pack(next) });
   } catch (error) { return json(res, 409, { error: error.message === "INVALID_ANALYSIS_STATE" ? "Investigation ledger could not be verified. Reload the mission." : error.message }); }

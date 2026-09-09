@@ -1,20 +1,5 @@
-import { assignment, hash } from "./_event.js";
-
-const clean = value => String(value || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
-const scene = (label, seed) => {
-  const x = 120 + seed % 180, shade = 80 + seed % 45, flip = seed % 2 ? -1 : 1;
-  if (label === "Elephant") return `<g transform="translate(${x} 122) scale(${flip} 1)"><ellipse cx="0" cy="0" rx="72" ry="39" fill="#${shade.toString(16).repeat(3)}"/><circle cx="62" cy="-6" r="31" fill="#${shade.toString(16).repeat(3)}"/><path d="M82 3 Q104 35 83 69" fill="none" stroke="#${shade.toString(16).repeat(3)}" stroke-width="13" stroke-linecap="round"/><path d="M75 2 l22 -10" stroke="#d6d0b9" stroke-width="4"/><path d="M-43 25v58M-3 30v53M40 23v60" stroke="#${shade.toString(16).repeat(3)}" stroke-width="17"/><circle cx="70" cy="-13" r="3" fill="#0a1114"/></g>`;
-  if (label === "Giraffe") return `<g transform="translate(${x} 112) scale(${flip} 1)" fill="#a59769" stroke="#171d1d" stroke-width="3"><ellipse cx="0" cy="22" rx="53" ry="24"/><path d="M30 16 L42 -72 L62 -72 L48 20Z"/><ellipse cx="61" cy="-77" rx="24" ry="12"/><path d="M48 42v68M23 42v68M-24 40v70M-43 33v77" stroke="#a59769" stroke-width="10"/><g fill="#423d2d" stroke="none"><circle cx="-20" cy="15" r="8"/><circle cx="7" cy="27" r="7"/><circle cx="30" cy="9" r="6"/><circle cx="46" cy="-25" r="6"/><circle cx="51" cy="-52" r="5"/></g></g>`;
-  if (label === "Human") return `<g transform="translate(${x} 116) scale(${flip} 1)" fill="#1b2020" stroke="#1b2020" stroke-linecap="round"><circle cx="0" cy="-49" r="15"/><path d="M0 -30v76M0 -7l-34 38M0 -5l31 21M0 44l-25 68M0 44l29 68" stroke-width="14" fill="none"/></g>`;
-  return `<g fill="#1b2422"><path d="M45 225 Q75 147 108 225 Q144 125 180 225 Q219 154 257 225 Q302 124 340 225 Q374 159 410 225Z"/><path d="M18 225 Q56 177 89 225M330 225Q365 171 418 225" stroke="#5f6b59" stroke-width="9"/></g>`;
-};
-
-export default function handler(req, res) {
-  const room = clean(req.query?.room), record = clean(req.query?.record);
-  if (!room || !record) { res.statusCode = 400; return res.end("room and record required"); }
-  const event = assignment(room), rows = [...event.known, ...event.unknown], index = Number(record.replace("EX-", "")) - 1, row = rows[index];
-  if (!row || record !== `EX-${String(index + 1).padStart(3, "0")}`) { res.statusCode = 404; return res.end("frame not found"); }
-  const seed = hash(`${room}:${row.id}`), night = seed % 3 === 0, sky = night ? "#182126" : "#7b8278", ground = night ? "#242e2b" : "#4b5548";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" role="img" aria-label="Camera trap frame ${record}"><defs><filter id="grain"><feTurbulence baseFrequency=".8" numOctaves="2" seed="${seed % 97}" result="n"/><feBlend in="SourceGraphic" in2="n" mode="multiply"/></filter><linearGradient id="v" x1="0" x2="0" y2="1"><stop stop-color="#000" stop-opacity=".25"/><stop offset=".5" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient></defs><rect width="480" height="270" fill="${sky}"/><circle cx="${65 + seed % 340}" cy="48" r="25" fill="#d3d2bc" opacity="${night ? .38 : .12}"/><path d="M0 163 Q70 135 137 165T275 158T480 153V270H0Z" fill="${ground}"/><g filter="url(#grain)">${scene(row.target, seed)}</g><rect width="480" height="270" fill="url(#v)"/><g stroke="#d5e0d7" stroke-opacity=".12">${Array.from({ length: 14 }, (_, i) => `<path d="M0 ${i * 20 + 7}H480"/>`).join("")}</g><g fill="#d9e5dd" font-family="monospace" font-size="11"><text x="14" y="22">EXP-CAM // ${record}</text><text x="14" y="254">${night ? "IR" : "DAY"}  ${String((seed % 24)).padStart(2, "0")}:${String(seed % 60).padStart(2, "0")}:${String(seed % 59).padStart(2, "0")}</text><text x="390" y="254">REC ●</text></g><path d="M8 42V8h34M438 8h34v34M8 228v34h34M472 228v34h-34" fill="none" stroke="#d9e5dd" stroke-width="2" opacity=".6"/></svg>`;
-  res.setHeader("Content-Type", "image/svg+xml; charset=utf-8"); res.setHeader("Cache-Control", "public, max-age=31536000, immutable"); res.statusCode = 200; res.end(svg);
+export default function handler(_req, res) {
+  res.statusCode = 410;
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.end("Event 2 is Manual Override: 50 tabular junction readings, not an image round.");
 }

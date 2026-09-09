@@ -1,86 +1,94 @@
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 
-export const DATASETS = [
-  { id: "uci-wine-quality-red", title: "UCI Wine Quality: Red", file: "winequality-red.csv", variant: "red wine" },
-  { id: "uci-wine-quality-white", title: "UCI Wine Quality: White", file: "winequality-white.csv", variant: "white wine" }
-];
-export const SOURCE_URL = "https://archive.ics.uci.edu/dataset/186/wine+quality";
-export const hash = value => { let n = 2166136261; for (const c of value) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0; };
-export const WILDLIFE_CLASSES = ["Elephant", "Giraffe", "Human", "Empty"];
-const wildlifeLabel = alcohol => alcohol < 9.5 ? "Empty" : alcohol < 10.5 ? "Human" : alcohol < 11.5 ? "Giraffe" : "Elephant";
-const SIGNAL_PROFILES = [
-  [["fixed_acidity", .45], ["residual_sugar", .3], ["alcohol", .25]],
-  [["volatile_acidity", .4], ["density", .35], ["sulphates", .25]],
-  [["citric_acid", .4], ["total_sulfur_dioxide", .35], ["pH", .25]],
-  [["chlorides", .4], ["free_sulfur_dioxide", .3], ["alcohol", .3]]
-];
-export function loadRows(dataset) {
-  const [header, ...lines] = readFileSync(new URL(`../data/${dataset.file}`, import.meta.url), "utf8").trim().split(/\r?\n/);
-  const columns = header.split(";").map(x => x.replaceAll('"', '').replaceAll(' ', '_'));
-  return lines.map((line, index) => { const values = line.split(";").map(Number), row = { id: `${dataset.id}-${String(index + 1).padStart(4, "0")}` }; columns.forEach((column, i) => { if (column !== "quality") row[column] = values[i]; }); row.target = wildlifeLabel(values[columns.indexOf("alcohol")]); return row; });
-}
-export function assignment(room) {
-  const dataset = DATASETS[hash(room) % DATASETS.length];
-  const ordered = loadRows(dataset).sort((a, b) => (hash(`${room}:${a.id}`) % 100000) - (hash(`${room}:${b.id}`) % 100000)).slice(0, 300), profile = SIGNAL_PROFILES[hash(`${room}:profile`) % SIGNAL_PROFILES.length];
-  const moments = Object.fromEntries(profile.map(([feature]) => { const values = ordered.map(row => Number(row[feature])), mean = values.reduce((sum, value) => sum + value, 0) / values.length, deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length) || 1; return [feature, { mean, deviation }]; }));
-  const ranked = ordered.map((row, index) => ({ index, score: profile.reduce((sum, [feature, weight]) => sum + weight * ((Number(row[feature]) - moments[feature].mean) / moments[feature].deviation), 0) + (hash(`${room}:${row.id}:signal`) % 1000) / 100000 } )).sort((a, b) => a.score - b.score);
-  ranked.forEach((entry, rank) => { ordered[entry.index].target = ["Empty", "Human", "Giraffe", "Elephant"][Math.min(3, Math.floor(rank * 4 / ranked.length))]; });
-  const working = ordered.slice(0, 200), hidden = ordered.slice(200, 300);
-  const features = Object.keys(working[0]).filter(x => !["id", "target"].includes(x));
-  return { dataset, features, known: working.slice(0, 150), unknown: working.slice(150), hidden, profileId: `SIG-${String((hash(`${room}:profile`) % SIGNAL_PROFILES.length) + 1).padStart(2, "0")}` };
-}
-export function qualityLab(event) {
-  const rows = [...event.known, ...event.unknown].map(row => ({ ...row }));
-  // The source rows stay server-held; these are the deliberate round-two faults.
-  [4, 21, 74].forEach(index => rows[index].residual_sugar = null);
-  [12, 49].forEach(index => rows[index].chlorides *= 10);
-  rows[61] = { ...rows[60], id: rows[61].id };
-  rows[119] = { ...rows[118], id: rows[119].id };
-  return rows;
-}
-export function recoveryPlan(event) {
-  const [first, ...rest] = event.features, left = [first, ...rest.slice(0, 5)], right = ["id", ...rest.slice(5)];
-  const checksum = recoveryChecksum(event);
-  const files = [
-    { id: "packet_a", name: "telemetry.csv", rows: [1, 120], columns: ["id", ...left, "packet_crc"], origin: "Transmission A", role: "Sensor block: acidity through chlorides", description: "The first half of a split sensor export. It covers EX-001–EX-120, but it deliberately stops before the remaining measurements.", preview: "EX-001 → EX-120 · partial measurement block" },
-    { id: "packet_b", name: "telemetry.csv", rows: [1, 118], columns: [...right, "source_file"], origin: "Transmission B", role: "Companion sensor block: sulphur through alcohol", description: "The matching companion export for EX-001–EX-118. Combine its fields with Transmission A to complete those records.", preview: "EX-001 → EX-118 · complementary measurement block" },
-    { id: "packet_c", name: "telemetry.csv", rows: [81, 200], columns: ["id", ...event.features], origin: "Transmission C", role: "Complete telemetry continuation", description: "A complete 11-measurement snapshot for the final stretch of the expedition: EX-081–EX-200.", preview: "EX-081 → EX-200 · full measurement block" },
-    { id: "packet_d", name: "telemetry.csv", rows: [1, 200], columns: ["id", ...event.features], origin: "Transmission D", role: "Unverified full-file duplicate", description: "A tempting all-in-one copy. Its filename and coverage look right, but its received fingerprint is not on Mission Control's manifest.", preview: "EX-001 → EX-200 · full-file duplicate" },
-    { id: "ledger_primary", name: "labels.csv", rows: [1, 150], columns: ["id", "label", "reviewer_note"], origin: "Transmission E", role: "Trusted labels ledger", description: "The approved labels ledger for the first 150 records. reviewer_note is transit paperwork, not analysis data.", preview: "EX-001 → EX-150 · labels block" },
-    { id: "ledger_backup", name: "labels.csv", rows: [1, 150], columns: ["id", "label"], origin: "Transmission F", role: "Unverified labels duplicate", description: "A clean-looking duplicate ledger. It has the same coverage as the trusted ledger but does not match the approved fingerprint.", preview: "EX-001 → EX-150 · labels duplicate" }
-  ];
-  const fingerprinted = files.map(file => ({ ...file, sha256: transmissionChecksum(event, file) }));
-  const approved = fingerprinted.filter(file => ["packet_a", "packet_b", "packet_c", "ledger_primary"].includes(file.id));
-  return {
-    checksum,
-    instruction: `<strong>Mission objective:</strong> reconstruct the Expedition’s 200-record analysis package: 11 measurement fields for every record and trusted labels for EX-001–EX-150.<br><br><strong>Read this first — fingerprints select the files:</strong> a SHA-256 is an unforgeable file fingerprint. Mission Control sent the approved transmission manifest below. Only use archive cards whose <em>received SHA-256</em> appears in that manifest. The archive intentionally contains same-named lookalikes with unapproved fingerprints.<br><br><strong>Then assemble the data:</strong> choose the row ranges and analysis columns you need from the approved cards. Overlap is allowed when records agree. Do not include transit paperwork: packet_crc, source_file, or reviewer_note. Finally, the server checks the fingerprint of the complete reconstructed package: <strong>SHA-256 ${checksum}</strong>.`,
-    manifest: approved.map(file => ({ name: file.name, origin: file.origin, role: file.role, sha256: file.sha256 })),
-    approvedFingerprints: approved.map(file => file.sha256),
-    files: fingerprinted
-  };
-}
-export function transmissionChecksum(event, file) {
-  const values = [];
-  for (let row = file.rows[0]; row <= file.rows[1]; row++) {
-    const source = row <= 150 ? event.known[row - 1] : event.unknown[row - 151];
-    values.push([`EX-${String(row).padStart(3, "0")}`, ...file.columns.map(column => {
-      if (column === "id") return `EX-${String(row).padStart(3, "0")}`;
-      if (column === "packet_crc") return `CRC-${String(row).padStart(3, "0")}`;
-      if (column === "source_file") return file.name;
-      if (column === "reviewer_note") return `reviewed-${String(row).padStart(3, "0")}`;
-      const original = column === "label" ? source.target : source[column];
-      return (file.id === "packet_d" && column === "chlorides") ? Number(original) + 0.004 : (file.id === "ledger_backup" && column === "label") ? (original === "quality_5" ? "quality_6" : "quality_5") : original;
-    })]);
+export const SOURCE_PACKAGE = "traffic_competition_package.zip";
+export const TRAFFIC_CLASSES = ["Free_Flow", "Heavy_Traffic", "Pedestrian_Event", "Incident", "Low_Activity"];
+export const MANUAL_CLASSES = ["Normal_Traffic", "Heavy_Traffic", "Pedestrian_Crossing", "Accident"];
+export const FEATURE_RANGES = {
+  vehicle_count: [0, 90], avg_vehicle_speed_kmph: [0, 90], road_occupancy_pct: [0, 100], pedestrian_count: [0, 70],
+  time_of_day_hr: [0, 24], visibility_m: [25, 3000], rain_intensity_mmhr: [0, 45], signal_wait_time_s: [0, 200],
+  road_wetness_pct: [0, 100], incident_distance_m: [1, 500], noise_level_db: [35, 100], ambient_temperature_c: [2, 45],
+  humidity_pct: [15, 100], camera_exposure_score: [0, 100], camera_focus_score: [0, 100], lane_marking_visibility_pct: [0, 100]
+};
+export const FEATURE_META = {
+  vehicle_count: { label: "Vehicle count", unit: "vehicles", family: "traffic" },
+  avg_vehicle_speed_kmph: { label: "Average vehicle speed", unit: "km/h", family: "traffic" },
+  road_occupancy_pct: { label: "Road occupancy", unit: "%", family: "traffic" },
+  pedestrian_count: { label: "Pedestrian count", unit: "people", family: "traffic" },
+  time_of_day_hr: { label: "Time of day", unit: "hour", family: "context" },
+  visibility_m: { label: "Visibility", unit: "m", family: "weather" },
+  rain_intensity_mmhr: { label: "Rain intensity", unit: "mm/h", family: "weather" },
+  signal_wait_time_s: { label: "Signal wait time", unit: "s", family: "signal" },
+  road_wetness_pct: { label: "Road wetness", unit: "%", family: "weather" },
+  incident_distance_m: { label: "Incident distance", unit: "m", family: "incident" },
+  noise_level_db: { label: "Noise level", unit: "dB", family: "legacy" },
+  ambient_temperature_c: { label: "Ambient temperature", unit: "°C", family: "legacy" },
+  humidity_pct: { label: "Humidity", unit: "%", family: "legacy" },
+  camera_exposure_score: { label: "Camera exposure", unit: "score", family: "camera" },
+  camera_focus_score: { label: "Camera focus", unit: "score", family: "camera" },
+  lane_marking_visibility_pct: { label: "Lane-marking visibility", unit: "%", family: "camera" }
+};
+
+export const hash = value => { let n = 2166136261; for (const c of String(value)) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0; };
+
+function parseCsv(text) {
+  const rows = []; let row = [], field = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field.replace(/\r$/, "")); rows.push(row); row = []; field = ""; }
+    else field += c;
   }
-  return createHash("sha256").update(JSON.stringify({ name: file.name, rows: file.rows, columns: file.columns, values })).digest("hex");
+  if (field.length || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
+  const [header, ...records] = rows.filter(parts => parts.some(value => value !== ""));
+  return records.map(parts => Object.fromEntries(header.map((name, index) => [name, parts[index] ?? ""])));
 }
-export function recoveryChecksum(event, cells) {
-  const rows = [...event.known, ...event.unknown].map((source, index) => [
-    `EX-${String(index + 1).padStart(3, "0")}`,
-    ...event.features.map(feature => cells?.[index]?.[feature] ?? source[feature]),
-    cells?.[index]?.label ?? (index < 150 ? source.target : "")
-  ]);
-  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+
+const numericColumns = new Set(Object.keys(FEATURE_META));
+const coerce = row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, numericColumns.has(key) ? (value === "" ? null : Number(value)) : value]));
+let cache;
+function loadData() {
+  if (cache) return cache;
+  const readCsv = name => parseCsv(readFileSync(new URL(`../data/traffic/${name}`, import.meta.url), "utf8")).map(coerce);
+  const trainDamaged = readCsv("train_16.csv"), test = readCsv("test_16.csv"), strengthRows = readCsv("feature_strength_table.csv");
+  cache = {
+    trainDamaged,
+    trainClean: readCsv("train_clean_16.csv"),
+    test,
+    truth: new Map(readCsv("test_truth.csv").map(row => [row.event_id, row.label])),
+    trainBackup: readCsv("train_backup_10.csv"),
+    testBackup: readCsv("test_backup_10.csv"),
+    corruptionLog: readCsv("corruption_log.csv"),
+    featureStrength: Object.fromEntries(strengthRows.map(row => [row.feature, row])),
+    backupFeatures: JSON.parse(readFileSync(new URL("../data/traffic/backup_feature_list.json", import.meta.url), "utf8")).backup_features,
+    metadata: JSON.parse(readFileSync(new URL("../data/traffic/generation_metadata.json", import.meta.url), "utf8")),
+    features: Object.keys(trainDamaged[0]).filter(key => !["event_id", "label"].includes(key))
+  };
+  return cache;
 }
-export const withoutTarget = row => { const { target, ...clean } = row; return clean; };
+
+export function manualClass(row) {
+  if (Number(row.incident_distance_m) < 50) return "Accident";
+  if (Number(row.vehicle_count) >= 25 && Number(row.avg_vehicle_speed_kmph) < 25) return "Heavy_Traffic";
+  if (Number(row.pedestrian_count) >= 10) return "Pedestrian_Crossing";
+  return "Normal_Traffic";
+}
+
+export function assignment(room = "fixed") {
+  const data = loadData();
+  const manualRows = data.test.slice(0, 50).map((row, index) => ({
+    manual_id: `MAN_${String(index + 1).padStart(3, "0")}`,
+    vehicle_count: row.vehicle_count,
+    avg_vehicle_speed_kmph: row.avg_vehicle_speed_kmph,
+    road_occupancy_pct: row.road_occupancy_pct,
+    pedestrian_count: row.pedestrian_count,
+    incident_distance_m: row.incident_distance_m
+  }));
+  return { room, ...data, manualRows };
+}
+
+export const withoutLabel = row => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "label"));

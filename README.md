@@ -1,105 +1,100 @@
-# Expedition Unknown
+# Signal Lost: Operation Clearway
 
-A Kahoot-style, multiplayer data-science game built for Vercel. Players join a host-controlled room, work through a server-selected wine-quality dataset, and produce a final `submission.csv`.
+An interface-driven multiplayer data-science game for **Events 2–5** of Operation Clearway. A host opens a room, teams join, and every decision carries into a final 500-row traffic forecast.
 
-**Live player app:** https://expedition-unknown-game.vercel.app  
-**Host console:** https://expedition-unknown-game.vercel.app/host.html
+The UI is adapted from **Adminator 4.3.0**, an MIT-licensed dashboard template. Vendored assets and the upstream license live in `public/vendor/adminator/`.
 
-## What players do
+## Event flow
 
-The game has five stages:
+### Event 2 — Manual Override
 
-1. **Data recovery** — investigate six intercepted transmissions, classify each as trusted or quarantined from its SHA-256 fingerprint, then reconstruct a 200-record data package from approved fragments.
-2. **Image labelling** — classify 50 server-rendered camera-trap frames as Elephant, Giraffe, Human, or Empty. Telemetry supports each decision, and incorrect labels carry into model training.
-3. **Feature hunt** — spend a server-verified 10-credit investigation budget on basic statistics, variance, null patterns, class distributions, a correlation matrix, pair relationships, and baseline importance. Every investigation branches across the full 200 records, the trusted 150, or the team's 50 field labels. Teams must then lock exactly 8 features without entering a written or dropdown rationale.
+Teams classify 50 tabular junction readings using the ordered paper protocol from `QuickRead_Briefing.pdf`:
 
-Each room receives a different hidden multi-signal ecology profile, so the strongest features vary between games. The server scores the locked dossier for predictive signal, coverage, independence, and investigation breadth; the same selected features continue into every later model run.
-4. **Quality lab** — spend repair credits on server-side data-quality fixes.
-5. **ML arena** — run fixed validation for five models and export `submission.csv`.
+1. `incident_distance_m < 50` → `Accident`
+2. otherwise, `vehicle_count >= 25` and `avg_vehicle_speed_kmph < 25` → `Heavy_Traffic`
+3. otherwise, `pedestrian_count >= 10` → `Pedestrian_Crossing`
+4. otherwise → `Normal_Traffic`
 
-The server deterministically chooses one of the UCI Wine Quality datasets per room. The 100 final-test labels never reach the client.
+The first matching rule wins. Scoring is +1 correct, −1 wrong, and 0 blank. Event 2 uses numbers only—there are no images.
 
-## Recovery Bin: how the first stage works
+### Event 3 — Feature Hunt
 
-Mission Control publishes an approved transmission manifest. Each intercepted file has its own received SHA-256 fingerprint, a row range, a column set, and a plain-language description.
+The supplied damaged training archive exposes 16 telemetry channels. Teams spend from a signed 10-credit investigation ledger, then lock exactly 10 channels. Available investigations match the competition guide: basic statistics, missing-value analysis, class-wise distributions, correlations, baseline importance, and pair relationships.
 
-Players must first classify every transmission as **Trusted** or **Quarantine**. The server verifies this chain-of-custody decision. Only then can they select row ranges and columns from trusted fragments. The server rejects unapproved fingerprints, transit metadata, conflicting cells, incomplete feature coverage, and bad labels; it finally validates the reconstructed package against a canonical SHA-256 checksum.
+### Event 4 — Data Quality Lab
 
-Three hint credits are available per player/room browser session. A failed classification or reconstruction consumes one credit and returns a targeted hint.
+Teams spend at most 15 repair credits within their locked feature set:
 
-## Image classification: second stage
+- Missing values: 3 credits per column, maximum 3 columns
+- Outliers: 3 credits per column, maximum 2 columns
+- Suspicious labels: 1 credit per record, maximum 6 records
+- Duplicate removal: 2 credits per group, maximum 4 groups
 
-After recovery, the client opens a 50-frame evidence queue. Each frame is generated server-side from the room's assigned record and exposes no text label. Players can navigate with the queue or arrow keys, assign one of four field classes with keys `1`-`4`, record confidence, and flag uncertain frames for review. `/api/labels` validates and scores the complete 50-label set; the submitted labels are then used by the later quality and model stages.
+The server applies the selected repairs to the supplied damaged archive and seals a scored repair plan.
 
-The camera imagery is a deterministic visual simulation tied to the same UCI-derived records and numeric telemetry. It is designed for the event game and should not be presented as a real wildlife observation corpus.
+After Event 3, a team can instead choose the Emergency Telemetry Feed. This irreversibly swaps both train and test to the supplied clean 10-channel backup pair, forfeits all Event 3 points, and uses the package’s fixed 6-strong + 4-weak mix.
+
+### Event 5 — Live Grid Forecast
+
+Teams select Decision Tree, Logistic Regression, K-Nearest Neighbors, Random Forest, or Support Vector Machine. The backend is a native Vercel Python function using a real scikit-learn `Pipeline`: `SimpleImputer` → `StandardScaler` → selected classifier. Each validation or final submission uses one slot from a shared eight-run cap. Visible evaluations use deterministic stratified five-fold Macro F1. Final submission retrains the pipeline on the full training-ready archive, predicts the clean hidden 500-row feed, and downloads:
+
+```csv
+event_id,prediction
+TST_00001,Free_Flow
+```
+
+The final score follows the supplied guide: Event 2 20%, Event 3 20%, Event 4 20%, evaluation efficiency 10%, and hidden-test Macro F1 30%.
+
+## Supplied data
+
+`data/traffic/` contains the package files used by the server:
+
+- `train_16.csv`: 2,030 delivered rows, 16 features, deliberately damaged
+- `train_clean_16.csv`: organizer-side 2,000-row canonical archive
+- `test_16.csv`: clean 500-row hidden feed without labels
+- `test_truth.csv`: server-side final answer key
+- `train_backup_10.csv` and `test_backup_10.csv`: matching clean backup tier
+- corruption, feature-strength, backup-list, and generation metadata
+
+Organizer truth files are not exposed by a public HTTP route. For a real competition, keep the repository/private deployment boundary appropriate so participants cannot read organizer assets from source control.
 
 ## Architecture
 
 ```text
-Player / Host browser
+Player / host browser
         │
         ├── Vercel static client
         └── Vercel API routes
-              ├── Supabase Postgres: rooms, host tokens, player roster
-              ├── server-selected dataset and recovery validation
-              └── model evaluation and submission generation
+              ├── Supabase rooms and shared evaluation cap
+              ├── signed Event 2 / 3 / 4 state seals
+              ├── server-side dataset diagnostics and repairs
+              └── Python/scikit-learn pipeline, five-fold validation, and hidden scoring
 ```
 
-The project also includes the earlier GLBP-style admission router prototype (`/api/join`, `/api/heartbeat`) for weighted, sticky routing across externally hosted game fleets. The current game room flow uses Supabase-backed rooms and Vercel API routes.
+The earlier weighted admission-router prototype remains in `/api/join` and `/api/heartbeat`; the current room flow uses Supabase-backed rooms and Vercel functions.
 
 ## Local setup
 
-Requirements: Node.js 20+ and the Vercel CLI.
+Requirements: Node.js 20+, Python 3.12, and the Vercel CLI.
 
 ```bash
 npm install
+python -m pip install -r requirements.txt
 vercel env pull .env.local
 npx vercel dev
 ```
 
-Open the local Vercel URL, create a room from `/host.html`, then join from the root page.
+Create a room at `/host.html`, join from `/`, and start the room from the host console.
 
-## Supabase setup
-
-1. Create a Supabase project.
-2. In the Supabase SQL Editor, run [`supabase/room_schema.sql`](supabase/room_schema.sql).
-3. Add these Vercel environment variables for Production, Preview, and Development:
-
-```text
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your_publishable_or_anon_key
-SUPABASE_SECRET_KEY=your_service_role_key
-```
-
-`SUPABASE_SECRET_KEY` is server-only. Never expose it in client-side code or commit it to Git.
-
-## Deploy
-
-```bash
-vercel --prod
-```
-
-After deployment, verify that the player URL loads, the host can create a room, a player can join, and a valid Recovery Bin reconstruction succeeds.
-
-## Project layout
-
-```text
-api/                 Vercel API routes and server-side game logic
-data/                UCI Wine Quality source CSVs
-public/              player, host, and game UI
-supabase/            room schema and RPC functions
-tests/               router tests
-vercel.json          Vercel configuration and server function includes
-```
+For Supabase, run `supabase/room_schema.sql`, then configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and server-only `SUPABASE_SECRET_KEY`. Set `CLEARWAY_STATE_SECRET` in production so signed progression tokens do not use the local development fallback.
 
 ## Validation
 
 ```bash
 npm test
+python -m unittest discover -s tests -p "test_*.py" -v
 node --check public/game.js
-node --check api/recovery.js
+python -m py_compile api/run.py api/ml_pipeline.py
 ```
 
-## Dataset and license
-
-The game uses the [UCI Wine Quality dataset](https://archive.ics.uci.edu/dataset/186/wine+quality), licensed CC BY 4.0. The original event design reference is not included in this repository.
+The tests cover dataset scale/parity, Manual Override priority/scoring, signed Feature Hunt state, repair-budget enforcement, the emergency feed, all five forecast models, hidden 500-row submission output, and the admission router.

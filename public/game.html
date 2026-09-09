@@ -1,22 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Expedition Unknown // Field Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/mission.css"><link rel="stylesheet" href="/recovery.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIGNAL LOST // Operation Clearway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/vendor/adminator/style.76ee5eee.css">
+  <link rel="stylesheet" href="/mission.css">
+  <link rel="stylesheet" href="/game-adapter.css">
 </head>
-<body class="app-body">
-  <div class="app-window">
-    <header class="titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>EXPEDITION UNKNOWN</strong><span id="mission-status">CONNECTING TO MISSION CONTROL…</span><button id="export" disabled>Export submission.csv</button></header>
-    <div class="app-shell">
-      <nav class="activitybar"><a href="/" title="Home">⌂</a><button class="selected" title="Mission files">▱</button><button title="Evidence">◫</button><button title="Model lab">⌘</button><span></span><button title="Account">◎</button></nav>
-      <aside class="rail"><div class="rail-head"><small>MISSION</small><b>KESTREL / 07</b></div><p>DATA HEIST</p><button class="stage active" data-stage="recovery"><b>01</b><span>Data recovery<small>Forensic archive</small></span></button><button class="stage" data-stage="labelling"><b>02</b><span>Image labelling<small>50 camera frames</small></span></button><button class="stage" data-stage="features"><b>03</b><span>Feature hunt<small>Keep 8 signals</small></span></button><p>MODEL WAR</p><button class="stage" data-stage="quality"><b>04</b><span>Quality lab<small>Repair budget</small></span></button><button class="stage" data-stage="arena"><b>05</b><span>ML arena<small>Hidden evaluation</small></span></button><div class="credits"><span>FEATURE CREDITS</span><strong id="f-credit">10 / 10</strong><span>REPAIR CREDITS</span><strong id="r-credit">15 / 15</strong></div></aside>
-      <main id="workspace" class="workspace"><div class="loading"><i></i>SECURING SERVER-ASSIGNED DATASET…</div></main>
+<body>
+  <div class="shell">
+    <aside class="d-sidebar">
+      <div class="brand"><div class="brand-logo">C</div><div class="brand-text"><div class="brand-name">CLEARWAY</div><div class="brand-tag">GRID RESTORATION</div></div></div>
+      <nav class="nav-section">
+        <div class="nav-label">Events in scope</div>
+        <button class="nav-link stage is-active active" data-stage="manual"><span>Manual Override</span><span class="nav-badge hot">02</span></button>
+        <button class="nav-link stage" data-stage="features"><span>Feature Hunt</span><span class="nav-badge">03</span></button>
+        <button class="nav-link stage" data-stage="quality"><span>Data Quality Lab</span><span class="nav-badge">04</span></button>
+        <button class="nav-link stage" data-stage="forecast"><span>Live Grid Forecast</span><span class="nav-badge pro">05</span></button>
+      </nav>
+      <div class="nav-section">
+        <div class="nav-label">Shared resources</div>
+        <div class="nav-link"><span>Investigation credits</span><span id="f-credit" class="nav-badge new">10 / 10</span></div>
+        <div class="nav-link"><span>Repair credits</span><span id="r-credit" class="nav-badge hot">15 / 15</span></div>
+        <div class="nav-link"><span>Forecast runs</span><span id="e-credit" class="nav-badge pro">8 / 8</span></div>
+      </div>
+      <div class="sidebar-footer"><div class="workspace"><div class="workspace-avatar">MC</div><div class="workspace-text"><div class="workspace-name">Meridian City</div><div class="workspace-role">Grid Restoration Cell</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="d-topbar">
+        <div class="crumbs"><span>Adaptive Traffic Control</span><span class="sep">/</span><span class="current" id="mission-status">Connecting…</span></div>
+        <div class="topbar-actions"><span class="tag t-old">EVENTS 2–5 · 125 MIN</span><button id="export" class="btn btn--ghost" disabled>Download submission.csv</button></div>
+      </header>
+      <main class="content">
+        <section class="hero"><div class="hero-text"><span class="eyebrow">03:14 · CENTRAL MODEL OFFLINE</span><h1 class="hero-title">Operation <span class="accent">Clearway</span></h1><p class="hero-sub">Classify the queued junctions by hand, choose ten channels, repair the damaged archive, and predict the next 500 packets.</p></div></section>
+        <div id="workspace" class="game-workspace"><section class="card"><div class="loading"><i></i>LOADING CLEARWAY DATA…</div></section></div>
+      </main>
+      <footer class="d-footer"><span>SIGNAL LOST · OPERATION CLEARWAY</span><div class="d-footer-meta"><span>SERVER-SIDE ANSWER KEYS</span><span>TRAIN / TEST COLUMN PARITY</span></div></footer>
     </div>
-    <footer class="statusbar"><span><i></i> Mission link encrypted</span><span>SERVER AUTHORITY · BOM1</span><span>UTF-8&nbsp;&nbsp; SHA-256&nbsp;&nbsp; LIVE</span></footer>
   </div>
+  <div id="story-layer" class="palette-backdrop"></div>
   <script src="/game.js"></script>
 </body>
 </html>

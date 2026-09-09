@@ -1,26 +1,47 @@
 import { clean, json } from "./_gateway.js";
-import { assignment, qualityLab, recoveryPlan, SOURCE_URL, WILDLIFE_CLASSES, withoutTarget } from "./_event.js";
+import { assignment, FEATURE_META, MANUAL_CLASSES, SOURCE_PACKAGE, TRAFFIC_CLASSES } from "./_event.js";
 
 export default function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "POST required" });
   const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20);
   if (!room || !player) return json(res, 400, { error: "room and player are required" });
-  const event = assignment(room), recovery = recoveryPlan(event), labRows = qualityLab(event), known = labRows.slice(0, 150), unknown = labRows.slice(150), classes = WILDLIFE_CLASSES;
+  const event = assignment(room);
   return json(res, 200, {
-    mission: { id: event.dataset.id, title: event.dataset.title, variant: event.dataset.variant, sourceUrl: SOURCE_URL, license: "CC BY 4.0", featureLimit: 8, featureCredits: 10, repairCredits: 15, evaluationLimit: 8, metric: "Macro F1" },
-    recovery: { instruction: recovery.instruction, manifest: recovery.manifest, files: recovery.files },
-    features: event.features,
-    knownRows: known,
-    unknownRows: unknown.map((row, index) => ({ ...withoutTarget(row), imageId: `EX-${String(index + 151).padStart(3, "0")}`, imageUrl: `/api/camera?room=${encodeURIComponent(room)}&record=EX-${String(index + 151).padStart(3, "0")}` })),
-    allowedLabels: classes,
-    classDefinitions: [
-      { name: "Elephant", cue: "Broad body, column-like legs, visible trunk or large ears." },
-      { name: "Giraffe", cue: "Tall neck, long legs, small head, irregular coat markings." },
-      { name: "Human", cue: "Upright biped silhouette with visible arms and separated legs." },
-      { name: "Empty", cue: "No target animal or person; vegetation and terrain only." }
+    mission: {
+      id: "operation-clearway",
+      title: "SIGNAL LOST: OPERATION CLEARWAY",
+      sourcePackage: SOURCE_PACKAGE,
+      scope: "Events 2–5",
+      featureLimit: 10,
+      featureCredits: 10,
+      repairCredits: 15,
+      evaluationLimit: 8,
+      metric: "Macro F1",
+      backend: "scikit-learn Pipeline",
+      durations: { manual: 20, features: 20, quality: 25, forecast: 60 },
+      weights: { manual: 20, features: 20, quality: 20, evaluationEfficiency: 10, finalModel: 30 }
+    },
+    manualRows: event.manualRows,
+    manualClasses: MANUAL_CLASSES,
+    manualRules: [
+      { priority: 1, label: "Accident", test: "incident_distance_m < 50" },
+      { priority: 2, label: "Heavy_Traffic", test: "vehicle_count ≥ 25 AND avg_vehicle_speed_kmph < 25" },
+      { priority: 3, label: "Pedestrian_Crossing", test: "pedestrian_count ≥ 10" },
+      { priority: 4, label: "Normal_Traffic", test: "fallback when no earlier rule fires" }
     ],
-    finalTestRows: event.hidden.map(withoutTarget),
-    recordCounts: { working: 200, known: 150, unknown: 50, finalTest: 100 },
-    submissionSchema: ["id", "prediction"]
+    features: event.features,
+    featureMeta: FEATURE_META,
+    trafficClasses: TRAFFIC_CLASSES,
+    classDefinitions: [
+      { name: "Free_Flow", cue: "Normal speed, lower occupancy, moderate volume." },
+      { name: "Heavy_Traffic", cue: "High volume and occupancy with reduced speed." },
+      { name: "Pedestrian_Event", cue: "Elevated pedestrian activity dominates the junction." },
+      { name: "Incident", cue: "Disruption associated with a nearby flagged obstruction." },
+      { name: "Low_Activity", cue: "Very little traffic or pedestrian activity." }
+    ],
+    trainPreview: event.trainDamaged.slice(0, 8),
+    recordCounts: { manual: 50, trainingDelivered: event.trainDamaged.length, trainingCanonical: event.trainClean.length, finalTest: event.test.length },
+    corruptionCounts: event.metadata.injected_problems,
+    submissionSchema: ["event_id", "prediction"]
   });
 }

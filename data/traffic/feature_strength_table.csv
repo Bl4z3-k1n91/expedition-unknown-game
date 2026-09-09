@@ -1,0 +1,17 @@
+feature,group,in_backup_tier,intended_strength,description
+vehicle_count,strong_10,True,strong,vehicles detected in the camera's road region
+avg_vehicle_speed_kmph,strong_10,True,strong,mean speed of detected vehicles
+road_occupancy_pct,strong_10,True,strong,percentage of road surface covered by vehicles
+pedestrian_count,strong_10,True,strong,people detected on or beside the carriageway
+time_of_day_hr,strong_10,True,moderate,"local hour, 0-24, decimal"
+visibility_m,strong_10,False,moderate,usable visual range
+rain_intensity_mmhr,strong_10,False,moderate,"rainfall rate, 0 when dry"
+signal_wait_time_s,strong_10,True,strong,time since the signal last turned green
+road_wetness_pct,strong_10,False,moderate,"surface wetness, lags rain"
+incident_distance_m,strong_10,False,strong,distance to the nearest flagged obstruction
+noise_level_db,weak_6,True,weak,roadside microphone level - largely redundant with vehicle_count
+ambient_temperature_c,weak_6,True,weak,air temperature
+humidity_pct,weak_6,True,weak,relative humidity - redundant with rain
+camera_exposure_score,weak_6,True,weak,auto-exposure setting - tracks time of day
+camera_focus_score,weak_6,False,weak,"lens focus quality, mostly constant"
+lane_marking_visibility_pct,weak_6,False,weak,how clearly lane paint is visible

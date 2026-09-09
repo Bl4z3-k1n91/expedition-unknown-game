@@ -4,3 +4,9 @@ node_modules
 .env.*
 !.env.example
 tmp
+__pycache__/
+*.py[cod]
+.vercel_python_packages/
+_uv/
+pyproject.toml
+uv.lock

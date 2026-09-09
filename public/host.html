@@ -1,3 +1,30 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition Unknown // Host</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/mission.css"><style>.title-link{color:#aeb8c4;text-decoration:none;font:9px 'DM Mono'}.host-copy{color:#7f8998;font-size:12px;line-height:1.6}</style></head>
-<body class="app-body"><div class="app-window"><header class="titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>EXPEDITION UNKNOWN</strong><span>MISSION CONTROL // HOST AUTHORITY</span><a class="title-link" href="/">Participant terminal</a></header><main class="host-console"><p class="eyebrow">LIVE ROOM / SECURE BROADCAST</p><h1 id="room-pin">CREATING<br><i>ROOM…</i></h1><p id="host-message" class="host-copy">Reserving a room from Mission Control.</p><button id="start-game" class="primary" disabled>Start expedition</button><section class="live-members"><p>CONNECTED FIELD TEAMS <b id="player-count">0</b></p><div id="players" class="real-players"><span>Waiting for the first team…</span></div></section></main><footer class="statusbar"><span><i></i> Host authority active</span><span>ROOM STATE SYNCHRONIZED</span></footer></div><script src="/host.js"></script></body></html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIGNAL LOST // Clearway Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/vendor/adminator/style.76ee5eee.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="d-sidebar">
+      <div class="brand"><div class="brand-logo">C</div><div class="brand-text"><div class="brand-name">CLEARWAY</div><div class="brand-tag">HOST CONTROL</div></div></div>
+      <div class="nav-section"><div class="nav-label">Room state</div><div class="nav-link is-active"><span>Restoration lobby</span><span class="nav-badge new">LIVE</span></div></div>
+      <div class="sidebar-footer"><a class="nav-link" href="/"><span>Participant terminal</span></a></div>
+    </aside>
+    <div class="main">
+      <header class="d-topbar"><div class="crumbs"><span>Mission Control</span><span class="sep">/</span><span class="current">Host authority</span></div></header>
+      <main class="content">
+        <section class="hero"><div class="hero-text"><span class="eyebrow">OPERATION CLEARWAY · EVENTS 2–5</span><h1 id="room-pin" class="hero-title">CREATING <span class="accent">ROOM…</span></h1><p id="host-message" class="hero-sub">Reserving a Grid Restoration room.</p></div><div class="hero-actions"><button id="start-game" class="btn btn--primary" disabled>Start restoration</button></div></section>
+        <section class="grid">
+          <article class="card col-12"><div class="card-head"><div class="card-title-wrap"><span class="eyebrow">CONNECTED TEAMS</span><h2 class="card-title">Restoration roster · <span id="player-count">0</span></h2></div></div><div id="players" class="real-players"><span>Waiting for the first team…</span></div></article>
+        </section>
+      </main>
+      <footer class="d-footer"><span>Host authority active</span><div class="d-footer-meta"><span>ROOM STATE SYNCHRONIZED</span></div></footer>
+    </div>
+  </div>
+  <script src="/host.js"></script>
+</body>
+</html>

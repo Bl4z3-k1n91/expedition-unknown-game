@@ -1,1 +1,40 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition Unknown // Connect</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css"></head><body><main class="connect-window"><header class="titlebar"><div><i></i><i></i><i></i></div><b>EXPEDITION UNKNOWN</b><span>secure participant terminal</span><a href="/host.html">Open host console</a></header><div class="connect-shell"><aside><div class="mark">EU</div><nav><span class="active">01<br><b>Connect</b></span><span>02<br><b>Recover</b></span><span>03<br><b>Classify</b></span><span>04<br><b>Train</b></span></nav><p>MISSION KESTREL<br>SECURE BUILD 2.1.0</p></aside><section class="connect-main"><div class="signal"><span>INCOMING FIELD SIGNAL</span><i></i></div><p class="kicker">MISSION CONTROL / PARTICIPANT ACCESS</p><h1>Recover the evidence.<br><em>Train on your decisions.</em></h1><p class="sub">A live, server-assigned data expedition. Every recovered file, image label, feature, and repair follows your team into the hidden evaluation.</p><form id="join-form"><div><label for="room">ROOM PIN</label><input id="room" name="room" inputmode="numeric" maxlength="16" placeholder="000 000" required></div><div><label for="player">FIELD NAME</label><input id="player" name="player" maxlength="20" placeholder="your callsign" required></div><button type="submit">Connect to mission <b>↗</b></button></form><p id="message" class="message" aria-live="polite">Encrypted room handshake ready.</p><div class="system-strip"><span><i></i> API ONLINE</span><span>SUPABASE ROOMS</span><span>SERVER-SELECTED DATA</span></div></section></div></main><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIGNAL LOST // Join Operation Clearway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/vendor/adminator/style.76ee5eee.css">
+</head>
+<body>
+  <div class="auth-shell">
+    <aside class="auth-aside">
+      <div class="auth-brand"><div class="logo">C</div><div class="name">CLEARWAY</div></div>
+      <div class="auth-aside-body">
+        <span class="auth-aside-eyebrow">03:14 · MERIDIAN CITY GRID</span>
+        <h1>The grid never stopped sending.</h1>
+        <p>Join a Grid Restoration Cell for Events 2–5: clear the manual queue, lock ten telemetry channels, repair the damaged archive, and classify the next packet.</p>
+        <div class="auth-quote">“The junctions kept running. The cameras kept watching. The sensors kept logging. Nothing got classified.”<div class="auth-quote-author"><div class="av">MC</div><div>Meridian Control · Operation Clearway</div></div></div>
+      </div>
+      <div class="auth-aside-footer"><span>ADAPTIVE TRAFFIC CONTROL</span><span>EVENTS 2–5</span></div>
+    </aside>
+    <main class="auth-main">
+      <div class="auth-main-top"><a href="/host.html">Open host console</a><div class="switch-link">Incident status: <a href="#">ACTIVE</a></div></div>
+      <div class="auth-card">
+        <span class="eyebrow">GRID RESTORATION ACCESS</span>
+        <h2>Join Operation Clearway</h2>
+        <p class="sub">Use the six-digit room PIN from the host and enter your team name.</p>
+        <form id="join-form" class="auth-form">
+          <div class="field"><label class="field-label" for="room">Room PIN</label><input id="room" class="input" name="room" inputmode="numeric" maxlength="16" placeholder="000000" required></div>
+          <div class="field"><label class="field-label" for="player">Team name</label><input id="player" class="input" name="player" maxlength="20" placeholder="grid-cell-07" required></div>
+          <button class="btn btn--primary auth-submit" type="submit">Enter control room <span>→</span></button>
+        </form>
+        <div id="message" class="field-help" aria-live="polite">Control-room handshake ready.</div>
+      </div>
+      <div class="auth-main-bottom">Powered by the Adminator 4.3.0 interface template · MIT licensed.</div>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
