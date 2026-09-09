@@ -52,13 +52,15 @@ test("Manual Override follows priority order and +1/-1/0 scoring", async () => {
 
 test("Feature Hunt spends a signed 10-credit ledger and locks exactly ten channels", async () => {
   const room = "300003", player = "feature-team", event = assignment(room);
-  const importance = await invoke(analyzeHandler, { room, player, type: "importance" });
-  assert.equal(importance.statusCode, 200); assert.equal(importance.body.cost, 3); assert.equal(importance.body.result.ranking.length, 16);
-  const stats = await invoke(analyzeHandler, { room, player, type: "stats", feature: event.features[0], analysisState: importance.body.analysisState });
-  assert.equal(stats.body.creditsRemaining, 6);
-  const bad = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 9), analysisState: stats.body.analysisState });
+  const blocked = await invoke(analyzeHandler, { room, player, type: "importance" });
+  assert.equal(blocked.statusCode, 400);
+  const stats = await invoke(analyzeHandler, { room, player, type: "stats", feature: event.features[0] });
+  assert.equal(stats.body.creditsRemaining, 9);
+  const correlation = await invoke(analyzeHandler, { room, player, type: "correlation", analysisState: stats.body.analysisState });
+  assert.equal(correlation.body.creditsRemaining, 7);
+  const bad = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 9), analysisState: correlation.body.analysisState });
   assert.equal(bad.statusCode, 400);
-  const sealed = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10), analysisState: stats.body.analysisState });
+  const sealed = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10), analysisState: correlation.body.analysisState });
   assert.equal(sealed.statusCode, 200); assert.equal(sealed.body.selected.length, 10); assert.equal(sealed.body.strongCount, 10); assert.ok(sealed.body.featureState);
 });
 
@@ -69,10 +71,14 @@ test("Data Quality Lab enforces the 15-credit typed repair plan", async () => {
   assert.equal(over.statusCode, 409); assert.match(over.body.error, /costs 16.*allows 15/i);
 });
 
-test("Emergency Feed swaps matching clean tiers and forfeits Event 3 points", async () => {
-  const room = "400004", player = "rescue-team", event = assignment(room), features = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10) });
-  const result = await invoke(qualityHandler, { room, player, action: "seal", featureState: features.body.featureState, emergencyFeed: true, repairs: {} });
-  assert.equal(result.statusCode, 200); assert.equal(result.body.featureScore, 0); assert.equal(result.body.qualityScore, 100); assert.deepEqual(result.body.features, event.backupFeatures);
+test("Emergency Feed is a low-score breakout route, not an alternate winning path", async () => {
+  const room = "400004", player = "rescue-team", event = assignment(room);
+  const strongLock = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10) });
+  const blocked = await invoke(qualityHandler, { room, player, action: "seal", featureState: strongLock.body.featureState, emergencyFeed: true, repairs: {} });
+  assert.equal(blocked.statusCode, 409); assert.match(blocked.body.error, /4 or fewer strong/i);
+  const poorLock = await invoke(featuresHandler, { room, player: "poor-lock", features: [...event.features.slice(0, 4), ...event.features.slice(-6)] });
+  const result = await invoke(qualityHandler, { room, player: "poor-lock", action: "seal", featureState: poorLock.body.featureState, emergencyFeed: true, repairs: {} });
+  assert.equal(result.statusCode, 200); assert.equal(poorLock.body.strongCount, 4); assert.equal(result.body.featureScore, 0); assert.equal(result.body.qualityScore, 35); assert.deepEqual(result.body.features, event.backupFeatures);
 });
 
 test("Event 5 is implemented as a native Vercel scikit-learn pipeline", () => {

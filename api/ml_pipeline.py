@@ -41,6 +41,9 @@ APPROVED_MODELS = {
     "Random Forest": lambda: RandomForestClassifier(n_estimators=180, max_depth=12, min_samples_leaf=2, class_weight="balanced_subsample", n_jobs=1, random_state=42),
     "Support Vector Machine": lambda: SVC(C=2.0, gamma="scale", class_weight="balanced", random_state=42),
 }
+EMERGENCY_MAX_STRONG_CHANNELS = 4
+EMERGENCY_QUALITY_SCORE = 35
+EMERGENCY_FINAL_MODEL_CAP = 70
 
 
 def _decode_segment(segment):
@@ -191,7 +194,9 @@ def _consume_evaluation(room, player):
         raise RuntimeError(detail) from error
 
 
-def _outcome(score):
+def _outcome(score, emergency_feed=False):
+    if emergency_feed:
+        return {"tier": "silver", "code": "FALLBACK ROUTE STABILIZED", "title": "The backup feed kept CLEARWAY operational.", "body": "The recovery route prevented a total loss, but its score ceiling keeps it out of contention for the top result."}
     if score >= 0.78:
         return {"tier": "gold", "code": "CLEARWAY RESTORED", "title": "The grid is classifying live traffic again.", "body": "The repaired archive and final channel set hold on the sealed feed. CLEARWAY returns to service before the next control cycle."}
     if score >= 0.66:
@@ -212,7 +217,13 @@ def run_request(body):
         manual = verify_state(body.get("manualState"), "manual", room, player)
         feature = verify_state(body.get("featureState"), "features", room, player)
         quality = verify_state(body.get("qualityState"), "quality", room, player)
-        if not quality.get("emergencyFeed") and (quality.get("featureScore") != feature.get("score") or quality.get("features") != feature.get("selected")):
+        if quality.get("emergencyFeed"):
+            if (feature.get("strongCount", 99) > EMERGENCY_MAX_STRONG_CHANNELS or
+                    quality.get("features") != load_data()["backup_features"] or
+                    quality.get("featureScore") != 0 or
+                    quality.get("qualityScore") != EMERGENCY_QUALITY_SCORE):
+                raise ValueError("INVALID_STATE")
+        elif quality.get("featureScore") != feature.get("score") or quality.get("features") != feature.get("selected"):
             raise ValueError("INVALID_STATE")
         features, rows, test_rows, truth = apply_quality(quality)
         reserved = _consume_evaluation(room, player)
@@ -234,13 +245,16 @@ def run_request(body):
             return 200, {**common, "score": round(validation["score"], 3), "stability": round(validation["stability"], 3), "folds": 5, "foldScores": [round(value, 3) for value in validation["foldScores"]], "weakestClass": validation["weakestClass"], "perClass": validation["perClass"], "confusion": {"labels": TRAFFIC_CLASSES, "matrix": validation["confusion"]}}
         predictions, hidden_score, _ = final_prediction(model_name, features, rows, test_rows, truth)
         efficiency = round(max(0, (8 - used) / 7) * 100, 1)
-        components = {"manual": manual["score"], "features": quality["featureScore"], "quality": quality["qualityScore"], "evaluationEfficiency": efficiency, "finalModel": round(hidden_score * 100, 1)}
+        model_score = round(hidden_score * 100, 1)
+        if quality.get("emergencyFeed"):
+            model_score = min(model_score, EMERGENCY_FINAL_MODEL_CAP)
+        components = {"manual": manual["score"], "features": quality["featureScore"], "quality": quality["qualityScore"], "evaluationEfficiency": efficiency, "finalModel": model_score}
         overall = round(components["manual"] * 0.2 + components["features"] * 0.2 + components["quality"] * 0.2 + components["evaluationEfficiency"] * 0.1 + components["finalModel"] * 0.3, 1)
         output = io.StringIO(newline="")
         writer = csv.writer(output, lineterminator="\n")
         writer.writerow(["event_id", "prediction"])
         writer.writerows((row["event_id"], predictions[index]) for index, row in enumerate(test_rows))
-        return 200, {**common, "validationScore": round(validation["score"], 3), "validationStability": round(validation["stability"], 3), "finalScore": round(hidden_score, 3), "overallScore": overall, "components": components, "outcome": _outcome(hidden_score), "csv": output.getvalue()}
+        return 200, {**common, "validationScore": round(validation["score"], 3), "validationStability": round(validation["stability"], 3), "finalScore": round(hidden_score, 3), "overallScore": overall, "components": components, "emergencyFeed": bool(quality.get("emergencyFeed")), "outcome": _outcome(hidden_score, quality.get("emergencyFeed")), "csv": output.getvalue()}
     except (ValueError, KeyError, TypeError) as error:
         message = "One or more sealed event states could not be verified. Reload the mission." if str(error) == "INVALID_STATE" else str(error)
         return 409, {"error": message}

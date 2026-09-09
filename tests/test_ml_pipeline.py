@@ -52,6 +52,20 @@ class PipelineTests(unittest.TestCase):
         self.assertGreaterEqual(result["finalScore"], 0)
         self.assertLessEqual(result["finalScore"], 1)
 
+    def test_emergency_feed_is_only_a_bounded_recovery_route(self):
+        data = load_data()
+        poor_features = list(data["train"][0].keys())[1:5] + list(data["train"][0].keys())[-6:]
+        poor_feature_state = pack_state("features", room=self.room, player=self.player, selected=poor_features, score=34, strongCount=4, spent=0)
+        emergency_quality = pack_state("quality", room=self.room, player=self.player, features=data["backup_features"], featureScore=0, qualityScore=35, emergencyFeed=True, repairs={"missingColumns": [], "outlierColumns": [], "labelRecords": [], "duplicateGroups": []}, repairSpend=0)
+        body = self.body(action="submit", model="Random Forest")
+        body.update(featureState=poor_feature_state, qualityState=emergency_quality)
+        status, result = run_request(body)
+        self.assertEqual(status, 200)
+        self.assertTrue(result["emergencyFeed"])
+        self.assertLessEqual(result["components"]["finalModel"], 70)
+        self.assertLessEqual(result["overallScore"], 58)
+        self.assertEqual(result["outcome"]["code"], "FALLBACK ROUTE STABILIZED")
+
     def test_tampered_node_style_state_is_rejected(self):
         body = self.body()
         body["manualState"] += "x"

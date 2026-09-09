@@ -19,7 +19,7 @@ The first matching rule wins. Scoring is +1 correct, −1 wrong, and 0 blank. Ev
 
 ### Event 3 — Feature Hunt
 
-The supplied damaged training archive exposes 16 telemetry channels. Teams spend from a signed 10-credit investigation ledger, then lock exactly 10 channels. Available investigations match the competition guide: basic statistics, missing-value analysis, class-wise distributions, correlations, baseline importance, and pair relationships.
+The supplied damaged training archive exposes 16 telemetry channels. Teams spend from a signed 10-credit investigation ledger, then lock exactly 10 channels. Available investigations are deliberately diagnostic rather than answer-revealing: basic statistics, missing-value analysis, class-wise distributions, correlations, and pair relationships.
 
 ### Event 4 — Data Quality Lab
 
@@ -32,7 +32,7 @@ Teams spend at most 15 repair credits within their locked feature set:
 
 The server applies the selected repairs to the supplied damaged archive and seals a scored repair plan.
 
-After Event 3, a team can instead choose the Emergency Telemetry Feed. This irreversibly swaps both train and test to the supplied clean 10-channel backup pair, forfeits all Event 3 points, and uses the package’s fixed 6-strong + 4-weak mix.
+After Event 3, only teams that locked **four or fewer strong channels** can choose the Emergency Telemetry Feed. It irreversibly swaps both train and test to the supplied clean 10-channel backup pair, forfeits all Event 3 points, limits Event 4 to 35/100, and caps the final-model component at 70/100. The fixed 6-strong + 4-weak mix is a breakout route for a failed feature lock, not a route to a winning score: even perfect Event 2 and evaluation-efficiency results can produce at most 58/100 overall.
 
 ### Event 5 — Live Grid Forecast
 

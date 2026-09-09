@@ -7,7 +7,6 @@ const CATALOG = {
   missing: { cost: 1, scope: "feature" },
   classwise: { cost: 2, scope: "feature" },
   correlation: { cost: 2, scope: "global" },
-  importance: { cost: 3, scope: "global" },
   relationship: { cost: 2, scope: "pair" }
 };
 const BUDGET = 10;
@@ -40,20 +39,11 @@ export function correlation(rows, a, b) {
   const numerator = pairs.reduce((sum, pair) => sum + (pair[0] - ma) * (pair[1] - mb), 0), da = Math.sqrt(pairs.reduce((sum, pair) => sum + (pair[0] - ma) ** 2, 0)), db = Math.sqrt(pairs.reduce((sum, pair) => sum + (pair[1] - mb) ** 2, 0));
   return round(da && db ? numerator / (da * db) : 0);
 }
-const gini = labels => { const counts = Object.values(labels.reduce((map, label) => ({ ...map, [label]: (map[label] || 0) + 1 }), {})); return 1 - counts.reduce((sum, count) => sum + (count / labels.length) ** 2, 0); };
-export function stumpImportance(rows, feature) {
-  const points = rows.filter(row => Number.isFinite(Number(row[feature]))).map(row => ({ value: Number(row[feature]), label: row.target })).sort((a, b) => a.value - b.value);
-  if (points.length < 4) return 0;
-  const parent = gini(points.map(point => point.label)); let best = 0;
-  for (let i = 1; i < 20; i++) { const split = Math.floor(points.length * i / 20), left = points.slice(0, split), right = points.slice(split); const gain = parent - (left.length / points.length) * gini(left.map(x => x.label)) - (right.length / points.length) * gini(right.map(x => x.label)); best = Math.max(best, gain); }
-  return round(best);
-}
 function analyze(type, rows, features, feature, secondFeature) {
   if (type === "stats") return { kind: type, feature, summary: summary(rows, feature) };
   if (type === "missing") { const missingRows = rows.map((row, index) => row[feature] == null ? `EX-${String(index + 1).padStart(3, "0")}` : null).filter(Boolean); return { kind: type, feature, missingCount: missingRows.length, missingPct: round(missingRows.length * 100 / rows.length), affectedRecords: missingRows, completeCount: rows.length - missingRows.length }; }
   if (type === "classwise") return { kind: type, feature, classes: TRAFFIC_CLASSES.map(label => ({ label, ...summary(rows.filter(row => row.target === label), feature) })) };
   if (type === "correlation") return { kind: type, features, matrix: features.map(a => features.map(b => correlation(rows, a, b))) };
-  if (type === "importance") return { kind: type, ranking: features.map(name => ({ feature: name, importance: stumpImportance(rows, name) })).sort((a, b) => b.importance - a.importance).map((item, index) => ({ ...item, rank: index + 1 })) };
   const coefficient = correlation(rows, feature, secondFeature), ordered = numeric(rows.map(row => row[feature])).sort((a, b) => a - b), bins = [];
   for (let i = 0; i < 5; i++) { const low = ordered[Math.floor((ordered.length - 1) * i / 5)], high = ordered[Math.floor((ordered.length - 1) * (i + 1) / 5)], values = numeric(rows.filter(row => Number(row[feature]) >= low && Number(row[feature]) <= high).map(row => row[secondFeature])); bins.push({ from: round(low), to: round(high), mean: round(mean(values)), count: values.length }); }
   return { kind: type, feature, secondFeature, coefficient, bins };
