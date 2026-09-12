@@ -103,17 +103,18 @@ export default function handler(req, res) {
   try {
     const featureState = verifyState(req.body?.featureState, "features", room, player), event = assignment(room);
     const plan = buildQualityPlan(event, featureState.selected, room);
+    const timeTakenSeconds = Number(req.body?.timeTakenSeconds || 0);
     if (action === "plan") return json(res, 200, { plan, lockedFeatures: featureState.selected, emergencyFeatures: event.backupFeatures });
     if (action !== "seal") return json(res, 400, { error: "Choose plan or seal." });
     const emergencyFeed = Boolean(req.body?.emergencyFeed);
     if (emergencyFeed) {
       if (featureState.strongCount > EMERGENCY_MAX_STRONG_CHANNELS) throw new Error(`Emergency Feed is available only after a failed Feature Hunt lock (${EMERGENCY_MAX_STRONG_CHANNELS} or fewer strong channels).`);
-      const qualityState = packState("quality", { room, player, features: event.backupFeatures, featureScore: 0, qualityScore: EMERGENCY_QUALITY_SCORE, emergencyFeed: true, repairs: { missingColumns: [], outlierColumns: [], labelRecords: [], duplicateGroups: [] }, repairSpend: 0 });
-      return json(res, 200, { sealed: true, emergencyFeed: true, features: event.backupFeatures, featureScore: 0, qualityScore: EMERGENCY_QUALITY_SCORE, repairSpend: 0, repairBudget: BUDGET, qualityState, message: "Emergency Telemetry Feed locked as a recovery route. Event 3 is forfeited, Event 4 is capped at 35/100, and the clean 6-strong + 4-weak backup pair now carries into Event 5." });
+      const qualityState = packState("quality", { room, player, features: event.backupFeatures, featureScore: 0, qualityScore: EMERGENCY_QUALITY_SCORE, emergencyFeed: true, repairs: { missingColumns: [], outlierColumns: [], labelRecords: [], duplicateGroups: [] }, repairSpend: 0, timeTakenSeconds });
+      return json(res, 200, { sealed: true, emergencyFeed: true, features: event.backupFeatures, featureScore: 0, qualityScore: EMERGENCY_QUALITY_SCORE, repairSpend: 0, repairBudget: BUDGET, timeTakenSeconds, qualityState, message: "Emergency Telemetry Feed locked as a recovery route. Event 3 is forfeited, Event 4 is capped at 35/100, and the clean 6-strong + 4-weak backup pair now carries into Event 5." });
     }
     const { repairs, spend } = validateRepairs(plan, req.body?.repairs), qualityScore = scoreRepairPlan(plan, repairs);
-    const qualityState = packState("quality", { room, player, features: featureState.selected, featureScore: featureState.score, qualityScore, emergencyFeed: false, repairs, repairSpend: spend });
-    return json(res, 200, { sealed: true, emergencyFeed: false, features: featureState.selected, featureScore: featureState.score, qualityScore, repairSpend: spend, repairBudget: BUDGET, qualityState, message: `Data Quality Lab sealed: ${spend}/15 credits spent, repair effectiveness ${qualityScore}/100.` });
+    const qualityState = packState("quality", { room, player, features: featureState.selected, featureScore: featureState.score, qualityScore, emergencyFeed: false, repairs, repairSpend: spend, timeTakenSeconds });
+    return json(res, 200, { sealed: true, emergencyFeed: false, features: featureState.selected, featureScore: featureState.score, qualityScore, repairSpend: spend, repairBudget: BUDGET, timeTakenSeconds, qualityState, message: `Data Quality Lab sealed: ${spend}/15 credits spent, repair effectiveness ${qualityScore}/100.` });
   } catch (error) {
     const message = ["STATE_REQUIRED", "INVALID_STATE"].includes(error.message) ? "The Feature Hunt seal could not be verified. Reload the mission." : error.message;
     return json(res, 409, { error: message });

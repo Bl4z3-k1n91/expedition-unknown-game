@@ -18,7 +18,7 @@ export default function handler(req, res) {
       metric: "Macro F1",
       backend: "Kaggle RandomizedSearchCV handoff",
       tuningDefaults: { trials: 25, folds: 5, randomState: 42 },
-      durations: { manual: 20, features: 20, quality: 25, forecast: 60 },
+      durations: { manual: 15, features: 20, quality: 20, forecast: 60 },
       weights: { manual: 20, features: 20, quality: 20, evaluationEfficiency: 10, finalModel: 30 }
     },
     manualRows: event.manualRows,

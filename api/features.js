@@ -5,6 +5,13 @@ import { packState } from "./_state.js";
 
 const round = value => Number(value.toFixed(1));
 
+const weightForFeature = feature => {
+  const strength = String(feature?.intended_strength || "weak").toLowerCase();
+  if (strength === "strong") return 2;
+  if (strength === "moderate") return 1;
+  return 0;
+};
+
 export default function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "POST required" });
   const room = clean(req.body?.room, 16), player = clean(req.body?.player, 20);
@@ -14,15 +21,40 @@ export default function handler(req, res) {
   if (selected.some(feature => !event.features.includes(feature))) return json(res, 400, { error: "The channel set contains an invalid feature." });
   try {
     const ledger = verifyAnalysisState(req.body?.analysisState, room, player);
-    const strongCount = selected.filter(feature => event.featureStrength[feature]?.group === "strong_10").length;
+    const strongCount = selected.filter(feature => event.featureStrength[feature]?.intended_strength === "strong").length;
+    const moderateCount = selected.filter(feature => event.featureStrength[feature]?.intended_strength === "moderate").length;
+    const weakCount = selected.filter(feature => event.featureStrength[feature]?.intended_strength === "weak").length;
+    const pointsEarned = strongCount * 2 + moderateCount;
+    const maxPoints = 20;
+    const score = round((pointsEarned / maxPoints) * 100);
     const investigationTypes = new Set(ledger.purchases.map(key => key.split(":")[1])).size;
     const investigation = Math.min(100, investigationTypes * 15 + ledger.spent * 4);
-    const components = { channelStrength: strongCount * 10, investigation };
-    const score = round(components.channelStrength * .85 + components.investigation * .15);
-    const featureState = packState("features", { room, player, selected, score, strongCount, spent: ledger.spent });
+    const components = { channelStrength: pointsEarned * 10, investigation };
+    const featureState = packState("features", {
+      room,
+      player,
+      selected,
+      score,
+      strongCount,
+      moderateCount,
+      weakCount,
+      pointsEarned,
+      maxPoints,
+      spent: ledger.spent
+    });
     return json(res, 200, {
-      locked: true, selected, score, strongCount, components, spent: ledger.spent, featureState,
-      message: `Feature Hunt sealed: ${strongCount}/10 high-value channels found. This ten-channel set now carries into Events 4 and 5.`
+      locked: true,
+      selected,
+      score,
+      strongCount,
+      moderateCount,
+      weakCount,
+      pointsEarned,
+      maxPoints,
+      components,
+      spent: ledger.spent,
+      featureState,
+      message: `Feature Hunt sealed: ${strongCount} strong, ${moderateCount} moderate, ${weakCount} weak channels. Feature quality score ${score}/100.`
     });
   } catch (error) {
     return json(res, 409, { error: "The investigation ledger could not be verified. Reload the mission." });

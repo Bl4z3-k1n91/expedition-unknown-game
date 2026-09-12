@@ -5,7 +5,7 @@ if (!session) window.location.replace("/");
 
 const box = document.querySelector("#workspace"), download = document.querySelector("#export"), statusText = document.querySelector("#mission-status");
 const featureCredit = document.querySelector("#f-credit"), repairCredit = document.querySelector("#r-credit"), evaluationCredit = document.querySelector("#e-credit");
-const stageOrder = ["manual", "features", "quality", "forecast"];
+const stageOrder = ["event1", "manual", "features", "quality", "forecast"];
 const analysisCatalog = [
   ["stats", "Basic channel statistics", 1, "Mean, median, deviation, range and missing percentage."],
   ["missing", "Missing-value analysis", 1, "Null count and affected training records."],
@@ -23,11 +23,234 @@ const models = [
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const request = async (path, body) => { const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }), result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error), { result }); return result; };
 
-let data, stage = "manual", highestStage = 0;
+let data, stage = "event1", highestStage = 0;
 let manualLabels = {}, manualLocked = false, manualState = "", manualResult = null, manualStatus = "";
+let manualTimeSpentSec = 0, manualTimerId = null, manualTimerStart = Date.now();
+let event1Result = null, event1Status = "", event1TimeSpentSec = 0, event1TimerId = null, event1TimerStart = Date.now(), event1Selections = [];
 let selectedFeatures = new Set(), analysisType = "stats", analysisFeature = "", analysisSecond = "", analysisState = "", analysisCredits = 10, findings = [], featureState = "", featureResult = null, featureStatus = "";
+let featureTimeSpentSec = 0, featureTimerId = null, featureTimerStart = Date.now();
 let qualityPlan = null, repairs = { missingColumns: new Set(), outlierColumns: new Set(), labelRecords: new Set(), duplicateGroups: new Set() }, emergencyFeed = false, qualityState = "", qualityResult = null, qualityStatus = "";
+let qualityTimeSpentSec = 0, qualityTimerId = null, qualityTimerStart = Date.now();
 let model = "Decision Tree", tuning = normalizeTuning(), kaggleScript = "", forecastStatus = "";
+const FEATURE_TIMEOUT_SECONDS = 30 * 60;
+const QUALITY_TIMEOUT_SECONDS = 20 * 60;
+const EVENT1_TIMEOUT_SECONDS = 15 * 60;
+
+const formatCountdown = (secondsRemaining) => {
+  const totalSeconds = Math.max(0, secondsRemaining);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+const formatManualCountdown = () => formatCountdown(15 * 60 - manualTimeSpentSec);
+const formatFeatureCountdown = () => formatCountdown(FEATURE_TIMEOUT_SECONDS - featureTimeSpentSec);
+const formatQualityCountdown = () => formatCountdown(QUALITY_TIMEOUT_SECONDS - qualityTimeSpentSec);
+const formatEvent1Countdown = () => formatCountdown(EVENT1_TIMEOUT_SECONDS - event1TimeSpentSec);
+
+const saveEvent1Result = result => {
+  const storageKey = "clearway-event1-scores";
+  const roomScores = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  const roomKey = session.room;
+  const teamScores = Array.isArray(roomScores[roomKey]) ? roomScores[roomKey] : [];
+  const index = teamScores.findIndex(item => item.player === session.player);
+  const payload = {
+    player: session.player,
+    passed: Boolean(result.passed),
+    status: result.status || (result.passed ? "completed" : "failed"),
+    timeTakenSeconds: Number(result.timeTakenSeconds || event1TimeSpentSec),
+    submittedAt: Date.now()
+  };
+  if (index >= 0) teamScores[index] = payload; else teamScores.push(payload);
+  roomScores[roomKey] = teamScores;
+  localStorage.setItem(storageKey, JSON.stringify(roomScores));
+  window.dispatchEvent(new CustomEvent("clearway-event1-score", { detail: { room: roomKey, payload } }));
+};
+
+const saveEvent2Result = result => {
+  const storageKey = "clearway-event2-scores";
+  const roomScores = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  const roomKey = session.room;
+  const teamScores = Array.isArray(roomScores[roomKey]) ? roomScores[roomKey] : [];
+  const index = teamScores.findIndex(item => item.player === session.player);
+  const payload = {
+    player: session.player,
+    correct: result.correct,
+    wrong: result.wrong,
+    blank: result.blank,
+    points: result.points,
+    score: result.score,
+    timeTakenSeconds: Number(result.timeTakenSeconds || manualTimeSpentSec),
+    submittedAt: Date.now()
+  };
+  if (index >= 0) teamScores[index] = payload; else teamScores.push(payload);
+  roomScores[roomKey] = teamScores;
+  localStorage.setItem(storageKey, JSON.stringify(roomScores));
+  window.dispatchEvent(new CustomEvent("clearway-event2-score", { detail: { room: roomKey, payload } }));
+};
+
+const saveFeatureResult = result => {
+  const storageKey = "clearway-feature-scores";
+  const roomScores = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  const roomKey = session.room;
+  const teamScores = Array.isArray(roomScores[roomKey]) ? roomScores[roomKey] : [];
+  const index = teamScores.findIndex(item => item.player === session.player);
+  const payload = {
+    player: session.player,
+    strong: Number(result.strongCount || 0),
+    moderate: Number(result.moderateCount || 0),
+    weak: Number(result.weakCount || 0),
+    points: Number(result.pointsEarned || 0),
+    maxPoints: Number(result.maxPoints || 20),
+    score: Number(result.score || 0),
+    credits: Number(result.spent || 0),
+    timeTakenSeconds: Number(result.timeTakenSeconds || featureTimeSpentSec),
+    submittedAt: Date.now()
+  };
+  if (index >= 0) teamScores[index] = payload; else teamScores.push(payload);
+  roomScores[roomKey] = teamScores;
+  localStorage.setItem(storageKey, JSON.stringify(roomScores));
+  window.dispatchEvent(new CustomEvent("clearway-feature-score", { detail: { room: roomKey, payload } }));
+};
+
+const saveQualityResult = result => {
+  const storageKey = "clearway-quality-scores";
+  const roomScores = JSON.parse(localStorage.getItem(storageKey) || "{}");
+  const roomKey = session.room;
+  const teamScores = Array.isArray(roomScores[roomKey]) ? roomScores[roomKey] : [];
+  const index = teamScores.findIndex(item => item.player === session.player);
+  const payload = {
+    player: session.player,
+    strong: Number(featureResult?.strongCount || 0),
+    moderate: Number(featureResult?.moderateCount || 0),
+    weak: Number(featureResult?.weakCount || 0),
+    points: Number(featureResult?.pointsEarned || 0),
+    maxPoints: Number(featureResult?.maxPoints || 20),
+    score: Number(result.qualityScore ?? result.featureScore ?? featureResult?.score ?? 0),
+    credits: Number(result.repairSpend ?? 0),
+    timeTakenSeconds: Number(result.timeTakenSeconds || qualityTimeSpentSec),
+    emergencyFeed: Boolean(result.emergencyFeed),
+    submittedAt: Date.now()
+  };
+  if (index >= 0) teamScores[index] = payload; else teamScores.push(payload);
+  roomScores[roomKey] = teamScores;
+  localStorage.setItem(storageKey, JSON.stringify(roomScores));
+  window.dispatchEvent(new CustomEvent("clearway-quality-score", { detail: { room: roomKey, payload } }));
+};
+
+const sealManualRound = async () => {
+  if (manualLocked) return;
+  manualLocked = true;
+  if (manualTimerId) clearInterval(manualTimerId);
+  try {
+    manualResult = await request("/api/labels", {
+      room: session.room,
+      player: session.player,
+      labels: manualLabels,
+      timeTakenSeconds: manualTimeSpentSec
+    });
+    manualState = manualResult.manualState;
+    manualStatus = manualResult.message;
+    saveEvent2Result(manualResult);
+    highestStage = Math.max(highestStage, 2);
+    if (stage === "manual") {
+      setStage("features");
+    } else {
+      render();
+    }
+  } catch (error) {
+    manualLocked = false;
+    manualStatus = error.message;
+    render();
+  }
+};
+
+const startEvent1Timer = () => {
+  if (event1Result || event1TimerId) clearInterval(event1TimerId);
+  event1TimerStart = Date.now();
+  event1TimeSpentSec = 0;
+  event1TimerId = setInterval(() => {
+    event1TimeSpentSec = Math.min(EVENT1_TIMEOUT_SECONDS, Math.floor((Date.now() - event1TimerStart) / 1000));
+    if (event1TimeSpentSec >= EVENT1_TIMEOUT_SECONDS) {
+      clearInterval(event1TimerId);
+      if (!event1Result) {
+        event1Result = { passed: false, status: "failed", timeTakenSeconds: EVENT1_TIMEOUT_SECONDS };
+        event1Status = "15 minutes expired. Archive reconstruction failed. Event 2 opened with the supplied training data.";
+        saveEvent1Result(event1Result);
+        highestStage = Math.max(highestStage, 1);
+        setStage("manual");
+      }
+      return;
+    }
+    if (stage === "event1") {
+      const timerNode = document.querySelector("#event1-timer-value");
+      if (timerNode) timerNode.textContent = formatEvent1Countdown();
+    }
+  }, 1000);
+};
+
+const startManualTimer = () => {
+  if (manualLocked) return;
+  if (manualTimerId) clearInterval(manualTimerId);
+  manualTimerStart = Date.now();
+  manualTimeSpentSec = 0;
+  manualTimerId = setInterval(() => {
+    manualTimeSpentSec = Math.min(15 * 60, Math.floor((Date.now() - manualTimerStart) / 1000));
+    if (manualTimeSpentSec >= 15 * 60) {
+      clearInterval(manualTimerId);
+      if (!manualLocked) {
+        manualStatus = "Time expired. Event 2 was auto-locked and advanced to the next stage.";
+        sealManualRound();
+      }
+      return;
+    }
+    if (stage === "manual") {
+      const timerNode = document.querySelector("#manual-timer-value");
+      if (timerNode) timerNode.textContent = formatManualCountdown();
+    }
+  }, 1000);
+};
+
+const startFeatureTimer = () => {
+  if (featureResult || featureTimerId) clearInterval(featureTimerId);
+  featureTimerStart = Date.now();
+  featureTimeSpentSec = 0;
+  featureTimerId = setInterval(() => {
+    featureTimeSpentSec = Math.min(FEATURE_TIMEOUT_SECONDS, Math.floor((Date.now() - featureTimerStart) / 1000));
+    if (featureTimeSpentSec >= FEATURE_TIMEOUT_SECONDS) {
+      clearInterval(featureTimerId);
+      if (!featureResult && selectedFeatures.size === 10) {
+        featureStatus = "Feature lock timed out. The current ten-channel selection was sealed automatically.";
+        sealFeatureRound();
+      }
+      return;
+    }
+    if (stage === "features") {
+      const timerNode = document.querySelector("#feature-timer-value");
+      if (timerNode) timerNode.textContent = formatFeatureCountdown();
+    }
+  }, 1000);
+};
+
+const startQualityTimer = () => {
+  if (qualityResult || qualityTimerId) clearInterval(qualityTimerId);
+  qualityTimerStart = Date.now();
+  qualityTimeSpentSec = 0;
+  qualityTimerId = setInterval(() => {
+    qualityTimeSpentSec = Math.min(QUALITY_TIMEOUT_SECONDS, Math.floor((Date.now() - qualityTimerStart) / 1000));
+    if (qualityTimeSpentSec >= QUALITY_TIMEOUT_SECONDS) {
+      clearInterval(qualityTimerId);
+      if (!qualityResult) {
+        qualityStatus = "Quality Lab timed out. The current repair plan was sealed automatically.";
+        sealQualityRound();
+      }
+      return;
+    }
+    if (stage === "quality") {
+      const timerNode = document.querySelector("#quality-timer-value");
+      if (timerNode) timerNode.textContent = formatQualityCountdown();
+    }
+  }, 1000);
+};
 
 const featureName = name => data?.featureMeta?.[name]?.label || String(name).replaceAll("_", " ");
 const number = value => Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -35,7 +258,7 @@ const sectionIntro = (event, title, subtitle, beats) => `<section class="story-b
 
 function setStage(next) {
   const index = stageOrder.indexOf(next); if (index < 0 || index > highestStage) return;
-  stage = next; render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  stage = next; render(); if (stage === "event1") startEvent1Timer(); if (stage === "manual") startManualTimer(); if (stage === "features") startFeatureTimer(); if (stage === "quality") startQualityTimer(); window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function updateChrome() {
   featureCredit.textContent = `${analysisCredits} / 10`;
@@ -44,10 +267,37 @@ function updateChrome() {
   document.querySelectorAll("[data-stage]").forEach(button => { const index = stageOrder.indexOf(button.dataset.stage); button.classList.toggle("active", button.dataset.stage === stage); button.classList.toggle("is-active", button.dataset.stage === stage); button.disabled = index > highestStage; });
 }
 
+function renderEvent1() {
+  const archiveCandidates = [
+    "JTU7_stream_A_core_20260314_0314_gen1.csv",
+    "JTU7_stream_A_core_20260314_0314_gen2.csv",
+    "JTU7_stream_A_core_20260314_0314_gen3.csv",
+    "JTU7_stream_A_core_20260314_0314_gen3_COPY.csv",
+    "JTU7_stream_B_context_20260314_0314_gen3.csv",
+    "JTU7_stream_B_context_20260315_0314_gen3.csv",
+    "JTU7_stream_C_labels_20260314_0314_gen3.csv",
+    "JTU7_stream_C_labels_20260314_0314_gen3_partial.csv",
+    "JTU9_stream_A_core_20260314_0314_gen3.csv",
+    "camera_diag_backup_2025.csv",
+    "weather_export_legacy_2024Q1.csv",
+    "traffic/backup_feature_list.json"
+  ];
+  return `${sectionIntro("1", "Archive Reconstruction", "When the Surge hit CLEARWAY at 03:14, it did not just knock the classifier offline — it interrupted the streams writing to the archive at that exact moment. What sits on the recovery drive now is a broken patchwork of fragments, stale copies, and discarded exports from other systems that happened to share the same backup drive.", ["Archive Reconstruction", "Manual Override", "Feature Hunt", "Quality Lab", "Forecast"])}
+    <section class="incident-ribbon"><div><small>TARGET SITE</small><b>JTU-7</b></div><div><small>WINDOW</small><b>03:14–09:14</b></div><div><small>FINAL SYNC</small><b>generation 3</b></div><div><small>LEFTOVER FRAGMENTS</small><b>old + stray</b></div><div><small>TIMER</small><b id="event1-timer-value">${formatEvent1Countdown()}</b></div></section>
+    <section class="card"><div class="panel-title">Recovered archive bundle <span>Pull together the fragments that belong to the final JTU-7 recovery window</span></div>
+      <div class="selection-board">
+        <div class="panel-title">Available recovery fragments <span>${event1Selections.length}/3 selected</span></div>
+        <div class="pick-grid">${archiveCandidates.map(name => `<button class="pick feature ${event1Selections.includes(name) ? "chosen" : ""}" data-event1-choice="${name}" type="button"><b>${event1Selections.includes(name) ? "✓" : "+"}</b><span class="pick-text"><strong class="pick-name">${esc(name)}</strong><small>recovery fragment</small></span></button>`).join("")}</div>
+      </div>
+      <div class="analysis-status">${esc(event1Status || "Choose the three fragments that belong to the final JTU-7 gen3 bundle. No upload box is required; the archive is already staged in the project folder and it must be reconstructed from the valid names alone.")}</div>
+      <div class="stage-actions"><button id="event1-submit" class="btn btn--primary" ${event1Selections.length !== 3 ? "disabled" : ""}>Submit archive</button></div>
+    </section>`;
+}
+
 function renderManual() {
   const answered = Object.values(manualLabels).filter(Boolean).length;
-  return `${sectionIntro("2", "Manual Override", "Fifty queued junction readings cannot wait for CLEARWAY to reboot. Apply the printed checklist from top to bottom; the first matching rule wins. Wrong calls cost a point, while blanks score zero.", ["Manual Override", "Feature Hunt", "Quality Lab", "Forecast"])}
-    <section class="incident-ribbon"><div><small>QUEUED READINGS</small><b>50 tabular records</b></div><div><small>SCORING</small><b>+1 correct · −1 wrong · 0 blank</b></div><div><small>PROTOCOL</small><b>First matching rule wins</b></div><div><small>PROGRESS</small><b>${answered}/50 answered</b></div></section>
+  return `${sectionIntro("2", "Manual Override", "Fifty queued junction readings cannot wait for CLEARWAY to reboot. Apply the printed checklist from top to bottom; the first matching rule wins. Correct answers score +1; blank and wrong answers score 0.", ["Manual Override", "Feature Hunt", "Quality Lab", "Forecast"])}
+    <section class="incident-ribbon"><div><small>QUEUED READINGS</small><b>50 tabular records</b></div><div><small>SCORING</small><b>+1 correct · 0 wrong · 0 blank</b></div><div><small>PROTOCOL</small><b>First matching rule wins</b></div><div><small>PROGRESS</small><b id="manual-progress">${answered}/50 answered</b></div><div><small>TIMER</small><b id="manual-timer-value">${formatManualCountdown()}</b></div></section>
     <section class="card"><div class="panel-title">Paper protocol <span>Read every rule in order</span></div><div class="protocol-grid">${data.manualRules.map(rule => `<article><span>RULE ${rule.priority}</span><b>${esc(rule.label)}</b><small>${esc(rule.test)}</small></article>`).join("")}</div></section>
     <section class="card"><div class="panel-title">Manual review tray <span>Road occupancy is context; it is not a decision threshold in this protocol</span></div><div class="table-scroll"><table class="data-table manual-table"><thead><tr><th>ID</th><th>Vehicles</th><th>Avg speed</th><th>Occupancy</th><th>Pedestrians</th><th>Incident distance</th><th>Controller call</th></tr></thead><tbody>${data.manualRows.map(row => `<tr><th>${row.manual_id}</th><td>${row.vehicle_count}</td><td>${row.avg_vehicle_speed_kmph} km/h</td><td>${row.road_occupancy_pct}%</td><td>${row.pedestrian_count}</td><td>${row.incident_distance_m} m</td><td><select data-manual="${row.manual_id}" ${manualLocked ? "disabled" : ""}><option value="">Leave blank · 0 points</option>${data.manualClasses.map(label => `<option value="${label}" ${manualLabels[row.manual_id] === label ? "selected" : ""}>${label}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><div class="stage-actions"><span class="${manualResult ? "recovery-message success" : "recovery-message"}">${esc(manualStatus || "You may seal the ledger with blanks; guessing carries a real penalty.")}</span>${manualLocked ? `<button class="btn btn--primary" data-next="features">Open Event 3</button>` : `<button id="lock-manual" class="btn btn--primary">Seal Event 2 ledger</button>`}</div></section>`;
 }
@@ -64,11 +314,57 @@ function findingHtml(item) {
 function renderFeatures() {
   const config = analysisCatalog.find(item => item[0] === analysisType), global = analysisType === "correlation", pair = analysisType === "relationship";
   return `${sectionIntro("3", "Feature Hunt", "Sixteen telemetry channels survived the Surge, but Central has only ten seats. Spend investigation credits, then lock exactly ten channels. That choice cannot be reopened.", ["Manual Override", "Feature Hunt", "Quality Lab", "Forecast"])}
-    <section class="incident-ribbon"><div><small>CANDIDATE CHANNELS</small><b>16</b></div><div><small>LOCKED INPUTS</small><b>Exactly 10</b></div><div><small>INVESTIGATION POOL</small><b>${analysisCredits}/10 credits</b></div><div><small>TRAIN ARCHIVE</small><b>2,030 damaged rows</b></div></section>
+    <section class="incident-ribbon"><div><small>CANDIDATE CHANNELS</small><b>16</b></div><div><small>LOCKED INPUTS</small><b>Exactly 10</b></div><div><small>INVESTIGATION POOL</small><b>${analysisCredits}/10 credits</b></div><div><small>TRAIN ARCHIVE</small><b>2,030 damaged rows</b></div><div><small>TIMER</small><b id="feature-timer-value">${formatFeatureCountdown()}</b></div></section>
     <div class="investigation-shell"><aside class="tool-catalog"><div class="panel-title">Investigation menu <span>10-credit pool</span></div>${analysisCatalog.map(item => `<button data-analysis-type="${item[0]}" class="${analysisType === item[0] ? "active" : ""}" ${featureResult ? "disabled" : ""}><span><b>${esc(item[1])}</b><small>${esc(item[3])}</small></span><strong>${item[2]} CR</strong></button>`).join("")}</aside>
       <section class="evidence-console"><div class="panel-title">Analysis console <span>${esc(config[1])}</span></div><div class="analysis-config"><div><span>SELECTED TOOL</span><b>${esc(config[1])}</b><p>${esc(config[3])}</p></div>${global ? "" : `<label>Primary channel<select id="analysis-feature">${data.features.map(name => `<option value="${name}" ${analysisFeature === name ? "selected" : ""}>${esc(featureName(name))}</option>`).join("")}</select></label>`}${pair ? `<label>Comparison channel<select id="analysis-second">${data.features.filter(name => name !== analysisFeature).map(name => `<option value="${name}" ${analysisSecond === name ? "selected" : ""}>${esc(featureName(name))}</option>`).join("")}</select></label>` : ""}<button id="run-analysis" class="btn btn--primary" ${featureResult || analysisCredits < config[2] ? "disabled" : ""}>Run · ${config[2]} credits</button></div><div class="analysis-status">${esc(featureStatus || "Purchased evidence can be reopened without spending again.")}</div><div class="findings">${findings.length ? findings.map(findingHtml).join("") : `<div class="empty-finding"><b>NO INVESTIGATION PURCHASED</b><span>Choose a tool and spend credits to reveal evidence.</span></div>`}</div></section></div>
     <section class="selection-board"><div class="panel-title">Ten-channel lock <span>${selectedFeatures.size}/10 selected</span></div><div class="pick-grid">${data.features.map(name => `<button class="pick feature ${selectedFeatures.has(name) ? "chosen" : ""}" data-feature="${name}" ${featureResult ? "disabled" : ""}><b>${selectedFeatures.has(name) ? "✓" : "+"}</b><span>${esc(featureName(name))}<small>${esc(data.featureMeta[name].family)} channel</small></span></button>`).join("")}</div>${featureResult ? `<div class="feature-score"><strong>${featureResult.score}</strong><span>EVENT 3 SCORE</span><div><small>High-value seats</small><b>${featureResult.strongCount}/10</b></div><div><small>Credits spent</small><b>${featureResult.spent}/10</b></div></div><div class="stage-actions"><span class="recovery-message success">${esc(featureResult.message)}</span><button class="btn btn--primary" data-next="quality">Open Event 4</button></div>` : `<div class="feature-lock"><span>${esc(featureStatus || "Investigate first, then commit exactly ten channels.")}</span><b>${selectedFeatures.size}/10</b><button id="lock-features" class="btn btn--primary" ${selectedFeatures.size !== 10 ? "disabled" : ""}>Lock ten channels</button></div>`}</section>`;
 }
+
+const sealFeatureRound = async () => {
+  if (featureResult) return;
+  try {
+    featureResult = await request("/api/features", { room: session.room, player: session.player, features: [...selectedFeatures], analysisState });
+    featureState = featureResult.featureState;
+    featureStatus = featureResult.message;
+    saveFeatureResult(featureResult);
+    highestStage = Math.max(highestStage, 3);
+    if (stage === "features") {
+      setStage("quality");
+    } else {
+      render();
+    }
+  } catch (error) {
+    featureStatus = error.message;
+    render();
+  }
+};
+
+const sealQualityRound = async () => {
+  if (qualityResult) return;
+  try {
+    qualityResult = await request("/api/quality", {
+      room: session.room,
+      player: session.player,
+      action: "seal",
+      featureState,
+      emergencyFeed,
+      repairs: Object.fromEntries(Object.entries(repairs).map(([key, value]) => [key, [...value]])),
+      timeTakenSeconds: qualityTimeSpentSec
+    });
+    qualityState = qualityResult.qualityState;
+    qualityStatus = qualityResult.message;
+    saveQualityResult(qualityResult);
+    highestStage = Math.max(highestStage, 4);
+    if (stage === "quality") {
+      setStage("forecast");
+    } else {
+      render();
+    }
+  } catch (error) {
+    qualityStatus = error.message;
+    render();
+  }
+};
 
 const repairSpend = () => qualityPlan ? repairs.missingColumns.size * qualityPlan.costs.missing + repairs.outlierColumns.size * qualityPlan.costs.outlier + repairs.labelRecords.size * qualityPlan.costs.label + repairs.duplicateGroups.size * qualityPlan.costs.duplicate : 0;
 function repairCards(kind, items) {
@@ -99,7 +395,7 @@ function renderForecast() {
 
 function render() {
   updateChrome();
-  box.innerHTML = stage === "manual" ? renderManual() : stage === "features" ? renderFeatures() : stage === "quality" ? renderQuality() : renderForecast();
+  box.innerHTML = stage === "event1" ? renderEvent1() : stage === "manual" ? renderManual() : stage === "features" ? renderFeatures() : stage === "quality" ? renderQuality() : renderForecast();
   bind();
 }
 
@@ -112,18 +408,59 @@ function toggleRepair(kind, id) {
 }
 
 function bind() {
+  document.querySelectorAll("[data-event1-choice]").forEach(button => {
+    button.onclick = () => {
+      const name = button.dataset.event1Choice;
+      if (event1Selections.includes(name)) {
+        event1Selections = event1Selections.filter(item => item !== name);
+      } else if (event1Selections.length < 3) {
+        event1Selections.push(name);
+      } else {
+        event1Selections = [name];
+      }
+      render();
+    };
+  });
+
+  const event1Submit = document.querySelector("#event1-submit");
+  if (event1Submit) event1Submit.onclick = async () => {
+    const names = [...event1Selections];
+    const required = ["JTU7_stream_A_core_20260314_0314_gen3.csv", "JTU7_stream_B_context_20260314_0314_gen3.csv", "JTU7_stream_C_labels_20260314_0314_gen3.csv"];
+    const isMatch = names.length === required.length && required.every(name => names.includes(name));
+    if (!isMatch) {
+      event1Status = "The recovered bundle does not match the expected final archive. Re-check the site, time window, and generation before submitting again.";
+      render();
+      return;
+    }
+    try {
+      const result = await request("/api/recovery", { room: session.room, player: session.player, files: names, timeTakenSeconds: event1TimeSpentSec });
+      event1Result = { passed: Boolean(result.passed), status: result.status || "completed", timeTakenSeconds: Number(result.timeTakenSeconds || event1TimeSpentSec) };
+      event1Status = result.message || "Archive reconstructed successfully. The final JTU-7 gen3 bundle was verified.";
+      saveEvent1Result(event1Result);
+      highestStage = Math.max(highestStage, 1);
+      setStage("manual");
+    } catch (error) {
+      event1Status = error.message || "The archive bundle is invalid.";
+      render();
+    }
+  };
   document.querySelectorAll("[data-next]").forEach(button => button.onclick = () => setStage(button.dataset.next));
-  document.querySelectorAll("[data-manual]").forEach(select => select.onchange = () => { manualLabels[select.dataset.manual] = select.value; manualStatus = ""; render(); });
-  const lockManual = document.querySelector("#lock-manual"); if (lockManual) lockManual.onclick = async () => { lockManual.disabled = true; try { manualResult = await request("/api/labels", { room: session.room, player: session.player, labels: manualLabels }); manualState = manualResult.manualState; manualLocked = true; manualStatus = manualResult.message; highestStage = Math.max(highestStage, 1); render(); } catch (error) { manualStatus = error.message; render(); } };
+  document.querySelectorAll("[data-manual]").forEach(select => select.onchange = () => {
+    manualLabels[select.dataset.manual] = select.value;
+    manualStatus = "";
+    const progressNode = document.querySelector("#manual-progress");
+    if (progressNode) progressNode.textContent = `${Object.values(manualLabels).filter(Boolean).length}/50 answered`;
+  });
+  const lockManual = document.querySelector("#lock-manual"); if (lockManual) lockManual.onclick = async () => { lockManual.disabled = true; await sealManualRound(); };
   document.querySelectorAll("[data-analysis-type]").forEach(button => button.onclick = () => { analysisType = button.dataset.analysisType; featureStatus = ""; render(); });
   const primary = document.querySelector("#analysis-feature"); if (primary) primary.onchange = () => { analysisFeature = primary.value; if (analysisSecond === analysisFeature) analysisSecond = data.features.find(name => name !== analysisFeature); render(); };
   const second = document.querySelector("#analysis-second"); if (second) second.onchange = () => { analysisSecond = second.value; };
   const analyze = document.querySelector("#run-analysis"); if (analyze) analyze.onclick = async () => { analyze.disabled = true; try { const result = await request("/api/analyze", { room: session.room, player: session.player, type: analysisType, feature: analysisFeature, secondFeature: analysisSecond, analysisState }); analysisState = result.analysisState; analysisCredits = result.creditsRemaining; const key = `${analysisType}:${analysisFeature}:${analysisSecond}`; findings = [{ key, result: result.result }, ...findings.filter(item => item.key !== key)]; featureStatus = result.replayed ? "Evidence reopened; no credits charged." : `${result.cost} credits spent. ${result.creditsRemaining} remain.`; render(); } catch (error) { featureStatus = error.message; render(); } };
   document.querySelectorAll("[data-feature]").forEach(button => button.onclick = () => { const name = button.dataset.feature; if (selectedFeatures.has(name)) selectedFeatures.delete(name); else if (selectedFeatures.size < 10) selectedFeatures.add(name); render(); });
-  const lockFeatures = document.querySelector("#lock-features"); if (lockFeatures) lockFeatures.onclick = async () => { lockFeatures.disabled = true; try { featureResult = await request("/api/features", { room: session.room, player: session.player, features: [...selectedFeatures], analysisState }); featureState = featureResult.featureState; featureStatus = featureResult.message; highestStage = Math.max(highestStage, 2); const response = await request("/api/quality", { room: session.room, player: session.player, action: "plan", featureState }); qualityPlan = response.plan; render(); } catch (error) { featureStatus = error.message; render(); } };
+  const lockFeatures = document.querySelector("#lock-features"); if (lockFeatures) lockFeatures.onclick = async () => { lockFeatures.disabled = true; try { featureResult = await request("/api/features", { room: session.room, player: session.player, features: [...selectedFeatures], analysisState }); featureState = featureResult.featureState; featureStatus = featureResult.message; saveFeatureResult(featureResult); highestStage = Math.max(highestStage, 3); const response = await request("/api/quality", { room: session.room, player: session.player, action: "plan", featureState }); qualityPlan = response.plan; render(); } catch (error) { featureStatus = error.message; render(); } };
   const emergency = document.querySelector("#toggle-emergency"); if (emergency) emergency.onclick = () => { emergencyFeed = !emergencyFeed; qualityStatus = emergencyFeed ? "Emergency feed staged. Seal the event to make the swap irreversible." : "Emergency feed deselected."; render(); };
   document.querySelectorAll("[data-repair-kind]").forEach(button => button.onclick = () => toggleRepair(button.dataset.repairKind, button.dataset.repairId));
-  const sealQuality = document.querySelector("#seal-quality"); if (sealQuality) sealQuality.onclick = async () => { sealQuality.disabled = true; try { qualityResult = await request("/api/quality", { room: session.room, player: session.player, action: "seal", featureState, emergencyFeed, repairs: Object.fromEntries(Object.entries(repairs).map(([key, value]) => [key, [...value]])) }); qualityState = qualityResult.qualityState; qualityStatus = qualityResult.message; highestStage = Math.max(highestStage, 3); render(); } catch (error) { qualityStatus = error.message; render(); } };
+  const sealQuality = document.querySelector("#seal-quality"); if (sealQuality) sealQuality.onclick = async () => { sealQuality.disabled = true; try { qualityResult = await request("/api/quality", { room: session.room, player: session.player, action: "seal", featureState, emergencyFeed, repairs: Object.fromEntries(Object.entries(repairs).map(([key, value]) => [key, [...value]])) }); qualityState = qualityResult.qualityState; qualityStatus = qualityResult.message; saveQualityResult(qualityResult); highestStage = Math.max(highestStage, 4); render(); } catch (error) { qualityStatus = error.message; render(); } };
   document.querySelectorAll("[data-model]").forEach(button => button.onclick = () => { model = button.dataset.model; kaggleScript = ""; download.disabled = true; forecastStatus = ""; render(); });
   const tuningTrials = document.querySelector("#tuning-trials"), tuningFolds = document.querySelector("#tuning-folds"), tuningSeed = document.querySelector("#tuning-seed");
   [tuningTrials, tuningFolds, tuningSeed].filter(Boolean).forEach(input => input.onchange = () => { tuning = normalizeTuning({ trials: tuningTrials.value, folds: tuningFolds.value, randomState: tuningSeed.value }); kaggleScript = ""; download.disabled = true; forecastStatus = ""; render(); });
@@ -137,4 +474,6 @@ request("/api/mission", session).then(result => {
   data = result; analysisFeature = data.features[0]; analysisSecond = data.features[1];
   statusText.textContent = `${result.mission.scope.toUpperCase()} · ROOM ${session.room} · ${result.recordCounts.trainingDelivered} TRAIN / ${result.recordCounts.finalTest} TEST`;
   render();
+  if (stage === "event1") startEvent1Timer();
+  else startManualTimer();
 }).catch(error => box.innerHTML = `<div class="error-box">CLEARWAY console could not open: ${esc(error.message)}</div>`);

@@ -7,6 +7,7 @@ import analyzeHandler from "../api/analyze.js";
 import featuresHandler from "../api/features.js";
 import qualityHandler, { buildQualityPlan, scoreRepairPlan } from "../api/quality.js";
 import cameraHandler from "../api/camera.js";
+import recoveryHandler from "../api/recovery.js";
 import { buildKaggleScript, normalizeTuning } from "../public/kaggle-export.js";
 
 const response = () => ({ statusCode: 200, headers: {}, setHeader(name, value) { this.headers[name] = value; }, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; }, end(body) { this.body = body; } });
@@ -38,16 +39,38 @@ test("the supplied package loads the exact event-scale train/test tiers", async 
   assert.deepEqual(mission.body.submissionSchema, ["event_id", "prediction"]);
 });
 
-test("Manual Override follows priority order and +1/-1/0 scoring", async () => {
+test("Event 1 recovery validates the required archive bundle and marks timeout failures", async () => {
+  const room = "100001", player = "archive-team";
+  const valid = await invoke(recoveryHandler, { room, player, files: [
+    "JTU7_stream_A_core_20260314_0314_gen3.csv",
+    "JTU7_stream_B_context_20260314_0314_gen3.csv",
+    "JTU7_stream_C_labels_20260314_0314_gen3.csv"
+  ], timeTakenSeconds: 420 });
+  assert.equal(valid.statusCode, 200);
+  assert.equal(valid.body.passed, true);
+  assert.equal(valid.body.status, "completed");
+  const invalid = await invoke(recoveryHandler, { room, player, files: ["wrong.csv", "JTU7_stream_B_context_20260314_0314_gen3.csv"], timeTakenSeconds: 120 });
+  assert.equal(invalid.statusCode, 400);
+  assert.match(invalid.body.error, /required archive bundle/i);
+  const timeout = await invoke(recoveryHandler, { room, player, files: [], timeTakenSeconds: 900 });
+  assert.equal(timeout.statusCode, 200);
+  assert.equal(timeout.body.passed, false);
+  assert.equal(timeout.body.status, "failed");
+});
+
+test("Manual Override uses QuickRead answer keys and scores only correct answers", async () => {
+  const room = "200002", player = "paper-team", event = assignment(room); 
+  assert.ok(event.manualRows.length > 0); assert.ok(event.manualRows.every(row => row.manual_id.startsWith("QR_")));
+  assert.equal(event.quickreadAnswerKey.length, event.manualRows.length);
   assert.equal(manualClass({ incident_distance_m: 49.9, vehicle_count: 70, avg_vehicle_speed_kmph: 2, pedestrian_count: 30 }), "Accident");
   assert.equal(manualClass({ incident_distance_m: 50, vehicle_count: 25, avg_vehicle_speed_kmph: 24.9, pedestrian_count: 30 }), "Heavy_Traffic");
   assert.equal(manualClass({ incident_distance_m: 50, vehicle_count: 24, avg_vehicle_speed_kmph: 10, pedestrian_count: 10 }), "Pedestrian_Crossing");
   assert.equal(manualClass({ incident_distance_m: 50, vehicle_count: 24, avg_vehicle_speed_kmph: 10, pedestrian_count: 9 }), "Normal_Traffic");
-  const room = "200002", player = "paper-team", event = assignment(room), labels = {};
-  event.manualRows.slice(0, 10).forEach(row => labels[row.manual_id] = manualClass(row));
-  event.manualRows.slice(10, 15).forEach(row => labels[row.manual_id] = MANUAL_CLASSES.find(label => label !== manualClass(row)));
+  const labels = {};
+  event.manualRows.slice(0, 10).forEach(row => labels[row.manual_id] = row.correct_answer || manualClass(row));
+  event.manualRows.slice(10, 15).forEach(row => labels[row.manual_id] = MANUAL_CLASSES.find(label => label !== (row.correct_answer || manualClass(row))));
   const res = await invoke(labelsHandler, { room, player, labels });
-  assert.equal(res.statusCode, 200); assert.equal(res.body.correct, 10); assert.equal(res.body.wrong, 5); assert.equal(res.body.blank, 35); assert.equal(res.body.points, 5); assert.ok(res.body.manualState);
+  assert.equal(res.statusCode, 200); assert.equal(res.body.correct, 10); assert.equal(res.body.wrong, 5); assert.equal(res.body.blank, 35); assert.equal(res.body.points, 10); assert.equal(res.body.score, 20); assert.ok(res.body.manualState);
 });
 
 test("Feature Hunt spends a signed 10-credit ledger and locks exactly ten channels", async () => {
@@ -60,8 +83,26 @@ test("Feature Hunt spends a signed 10-credit ledger and locks exactly ten channe
   assert.equal(correlation.body.creditsRemaining, 7);
   const bad = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 9), analysisState: correlation.body.analysisState });
   assert.equal(bad.statusCode, 400);
-  const sealed = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10), analysisState: correlation.body.analysisState });
-  assert.equal(sealed.statusCode, 200); assert.equal(sealed.body.selected.length, 10); assert.equal(sealed.body.strongCount, 10); assert.ok(sealed.body.featureState);
+  const strongSelection = [...event.features.filter(feature => event.featureStrength[feature]?.intended_strength === "strong"), ...event.features.filter(feature => event.featureStrength[feature]?.intended_strength === "moderate").slice(0, 4)];
+  const sealed = await invoke(featuresHandler, { room, player, features: strongSelection, analysisState: correlation.body.analysisState });
+  assert.equal(sealed.statusCode, 200); assert.equal(sealed.body.selected.length, 10); assert.equal(sealed.body.strongCount, 6); assert.equal(sealed.body.moderateCount, 4); assert.equal(sealed.body.weakCount, 0); assert.equal(sealed.body.strongCount + sealed.body.moderateCount + sealed.body.weakCount, 10); assert.ok(sealed.body.featureState);
+});
+
+test("Feature Hunt scores strong channels at 2 points, moderate at 1, and weak at 0 out of 20", async () => {
+  const room = "300010", player = "score-team", event = assignment(room);
+  const stats = await invoke(analyzeHandler, { room, player, type: "stats", feature: event.features[0] });
+  const correlation = await invoke(analyzeHandler, { room, player, type: "correlation", analysisState: stats.body.analysisState });
+  const selected = [...event.features].slice(0, 10);
+  const result = await invoke(featuresHandler, { room, player, features: selected, analysisState: correlation.body.analysisState });
+  const total = selected.reduce((sum, feature) => {
+    const strength = event.featureStrength[feature]?.intended_strength || "weak";
+    return sum + (strength === "strong" ? 2 : strength === "moderate" ? 1 : 0);
+  }, 0);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.pointsEarned, total);
+  assert.equal(result.body.maxPoints, 20);
+  assert.equal(result.body.score, Number(((total / 20) * 100).toFixed(1)));
+  assert.equal(result.body.strongCount + result.body.moderateCount + result.body.weakCount, 10);
 });
 
 test("Data Quality Lab enforces the 15-credit typed repair plan", async () => {
@@ -79,6 +120,24 @@ test("Emergency Feed is a low-score breakout route, not an alternate winning pat
   const poorLock = await invoke(featuresHandler, { room, player: "poor-lock", features: [...event.features.slice(0, 4), ...event.features.slice(-6)] });
   const result = await invoke(qualityHandler, { room, player: "poor-lock", action: "seal", featureState: poorLock.body.featureState, emergencyFeed: true, repairs: {} });
   assert.equal(result.statusCode, 200); assert.equal(poorLock.body.strongCount, 4); assert.equal(result.body.featureScore, 0); assert.equal(result.body.qualityScore, 35); assert.deepEqual(result.body.features, event.backupFeatures);
+});
+
+test("Event 4 reports credit spend and elapsed time in the sealed quality payload", async () => {
+  const room = "400005", player = "quality-team";
+  const event = assignment(room);
+  const featureLock = await invoke(featuresHandler, { room, player, features: event.features.slice(0, 10) });
+  const planResponse = await invoke(qualityHandler, { room, player, action: "plan", featureState: featureLock.body.featureState });
+  const plan = planResponse.body.plan;
+  const repairs = {
+    missingColumns: plan.missingColumns.slice(0, 3).map(item => item.feature),
+    outlierColumns: plan.outlierColumns.slice(0, 2).map(item => item.feature),
+    labelRecords: [],
+    duplicateGroups: []
+  };
+  const result = await invoke(qualityHandler, { room, player, action: "seal", featureState: featureLock.body.featureState, repairs, timeTakenSeconds: 273 });
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.repairSpend, 15);
+  assert.equal(result.body.timeTakenSeconds, 273);
 });
 
 test("Event 5 generates a model-specific Kaggle RandomizedSearchCV handoff", () => {

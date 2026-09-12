@@ -48,12 +48,13 @@ function parseCsv(text) {
   return records.map(parts => Object.fromEntries(header.map((name, index) => [name, parts[index] ?? ""])));
 }
 
+const readCsv = name => parseCsv(readFileSync(new URL(`../data/traffic/${name}`, import.meta.url), "utf8")).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Object.keys(FEATURE_META).includes(key) ? (value === "" ? null : Number(value)) : value])));
+
 const numericColumns = new Set(Object.keys(FEATURE_META));
 const coerce = row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, numericColumns.has(key) ? (value === "" ? null : Number(value)) : value]));
 let cache;
 function loadData() {
   if (cache) return cache;
-  const readCsv = name => parseCsv(readFileSync(new URL(`../data/traffic/${name}`, import.meta.url), "utf8")).map(coerce);
   const trainDamaged = readCsv("train_16.csv"), test = readCsv("test_16.csv"), strengthRows = readCsv("feature_strength_table.csv");
   cache = {
     trainDamaged,
@@ -80,15 +81,19 @@ export function manualClass(row) {
 
 export function assignment(room = "fixed") {
   const data = loadData();
-  const manualRows = data.test.slice(0, 50).map((row, index) => ({
-    manual_id: `MAN_${String(index + 1).padStart(3, "0")}`,
+  const participantRows = readCsv("quickread_participant.csv");
+  const answerKeyRows = readCsv("quickread_answer_key.csv");
+  const answerKeyMap = new Map(answerKeyRows.map(row => [row.record_id, row]));
+  const manualRows = participantRows.slice(0, 50).map(row => ({
+    manual_id: row.record_id,
     vehicle_count: row.vehicle_count,
     avg_vehicle_speed_kmph: row.avg_vehicle_speed_kmph,
     road_occupancy_pct: row.road_occupancy_pct,
     pedestrian_count: row.pedestrian_count,
-    incident_distance_m: row.incident_distance_m
+    incident_distance_m: row.incident_distance_m,
+    correct_answer: answerKeyMap.get(row.record_id)?.correct_answer || null
   }));
-  return { room, ...data, manualRows };
+  return { room, ...data, quickreadAnswerKey: answerKeyRows, manualRows };
 }
 
 export const withoutLabel = row => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "label"));
